@@ -6,11 +6,12 @@
 
 body {
     background: #222;
-    font-family: Arial, sans-serif;
+    font-family: 'Segoe UI', Arial, sans-serif;
     display: flex;
     justify-content: center;
     align-items: center;
     min-height: 100vh;
+    overflow: hidden;
 }
 
 .game-container {
@@ -19,12 +20,15 @@ body {
 
 .hud {
     width: 900px;
-    background: #111;
+    background: linear-gradient(to bottom, #1a1a2e, #16213e);
     color: white;
-    padding: 12px;
+    padding: 12px 20px;
     display: flex;
     justify-content: space-between;
     font-size: 20px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    border-bottom: 3px solid #e52521;
 }
 
 #game {
@@ -32,40 +36,63 @@ body {
     height: 500px;
     position: relative;
     overflow: hidden;
-    background: linear-gradient(
-        skyblue 0%,
-        #87ceeb 70%,
-        #6ecb3c 70%,
-        #6ecb3c 100%
-    );
+    background: linear-gradient(to bottom, #6bb5ff 0%, #87ceeb 60%);
+}
+
+/* Hills */
+.hill {
+    position: absolute;
+    bottom: 55px;
+    background: #3a8c28;
+    border-radius: 50% 50% 0 0;
+    z-index: 0;
+    opacity: 0.7;
+}
+
+/* Clouds */
+.cloud {
+    position: absolute;
+    background: white;
+    border-radius: 50px;
+    z-index: 1;
+    opacity: 0.9;
 }
 
 /* Player */
-
 #player {
     width: 35px;
     height: 45px;
-    background: red;
+    background: #e52521;
     position: absolute;
     left: 80px;
     bottom: 55px;
-    border-radius: 8px 8px 3px 3px;
+    border-radius: 5px 5px 3px 3px;
     z-index: 10;
 }
 
 #player::before {
     content: "";
     position: absolute;
-    width: 40px;
+    top: -4px;
+    left: -4px;
+    width: 43px;
+    height: 10px;
+    background: #c41e1a;
+    border-radius: 5px;
+}
+
+#player::after {
+    content: "";
+    position: absolute;
+    top: 12px;
+    left: 8px;
+    width: 19px;
     height: 12px;
-    background: red;
-    top: -6px;
-    left: -3px;
-    border-radius: 10px;
+    background: #ffb9b9;
+    border-radius: 4px;
 }
 
 /* Platforms */
-
 .platform {
     position: absolute;
     background: #8b4513;
@@ -101,14 +128,20 @@ body {
 }
 
 /* Coins */
-
 .coin {
     width: 25px;
     height: 25px;
-    background: gold;
-    border: 3px solid orange;
+    background: radial-gradient(circle at 40% 40%, #ffe44d, #ffd700, #daa520);
+    border: 2px solid #b8860b;
     border-radius: 50%;
     position: absolute;
+    z-index: 3;
+    animation: coinBob 1.5s ease-in-out infinite;
+}
+
+@keyframes coinBob {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
 }
 
 .coin1 {
@@ -127,13 +160,37 @@ body {
 }
 
 /* Enemies */
-
 .enemy {
     width: 35px;
     height: 30px;
-    background: #8b0000;
+    background: #6b3300;
     position: absolute;
-    border-radius: 15px 15px 5px 5px;
+    border-radius: 5px 5px 8px 8px;
+    z-index: 5;
+}
+
+.enemy::before {
+    content: "";
+    position: absolute;
+    top: 5px;
+    left: 5px;
+    width: 8px;
+    height: 8px;
+    background: white;
+    border-radius: 50%;
+    box-shadow: 14px 0 0 white;
+}
+
+.enemy::after {
+    content: "";
+    position: absolute;
+    top: 7px;
+    left: 9px;
+    width: 4px;
+    height: 4px;
+    background: #111;
+    border-radius: 50%;
+    box-shadow: 14px 0 0 #111;
 }
 
 .enemy1 {
@@ -146,34 +203,86 @@ body {
     bottom: 55px;
 }
 
-/* Game Over */
+/* Goal Flag */
+#goal {
+    position: absolute;
+    left: 840px;
+    bottom: 55px;
+    width: 6px;
+    height: 130px;
+    background: linear-gradient(to right, #bbb, #888);
+    border-radius: 3px 3px 0 0;
+    z-index: 5;
+}
 
+#goal::after {
+    content: "";
+    position: absolute;
+    top: 8px;
+    left: 6px;
+    width: 32px;
+    height: 24px;
+    background: #00c853;
+    border-radius: 2px 8px 8px 2px;
+    animation: flagWave 2s ease-in-out infinite;
+}
+
+@keyframes flagWave {
+    0%, 100% { transform: scaleX(1); }
+    50% { transform: scaleX(0.92); }
+}
+
+/* Message Overlay */
 #message {
     display: none;
     position: absolute;
-    top: 150px;
-    left: 300px;
-    width: 300px;
-    padding: 30px;
-    background: rgba(0, 0, 0, 0.85);
-    color: white;
-    border-radius: 10px;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
     z-index: 100;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+#message h1 {
+    font-size: 52px;
+    color: white;
+    margin-bottom: 10px;
+    text-shadow: 3px 3px 0 #000;
+    letter-spacing: 3px;
+}
+
+#message p {
+    color: #ccc;
+    font-size: 22px;
+    margin-bottom: 20px;
 }
 
 #message button {
-    margin-top: 20px;
-    padding: 10px 25px;
+    margin-top: 10px;
+    padding: 12px 35px;
     border: none;
-    background: red;
+    background: #e52521;
     color: white;
-    font-size: 18px;
+    font-size: 20px;
+    font-weight: bold;
     cursor: pointer;
-    border-radius: 5px;
+    border-radius: 8px;
+    letter-spacing: 1px;
+}
+
+#message button:hover {
+    background: #ff4444;
 }
 
 .controls {
-    color: white;
-    padding: 10px;
-    font-size: 18px;
+    width: 900px;
+    background: #111;
+    color: #aaa;
+    padding: 8px;
+    font-size: 14px;
+    text-align: center;
 }

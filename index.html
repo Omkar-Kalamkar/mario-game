@@ -6,44 +6,48 @@
     <title>Mario Game</title>
     <link rel="stylesheet" href="style.css">
 </head>
-
 <body>
-
     <div class="game-container">
-
         <div class="hud">
-            <span>Score: <span id="score">0</span></span>
-            <span>Coins: <span id="coins">0</span></span>
+            <span>SCORE: <span id="score">0</span></span>
+            <span>COINS: <span id="coinCount">0</span> / 3</span>
         </div>
 
         <div id="game">
+            <div class="hill" style="left:80px;width:180px;height:70px"></div>
+            <div class="hill" style="left:400px;width:140px;height:55px"></div>
+            <div class="hill" style="left:650px;width:200px;height:80px"></div>
+
+            <div class="cloud" style="left:60px;top:40px;width:90px;height:30px"></div>
+            <div class="cloud" style="left:300px;top:25px;width:120px;height:35px"></div>
+            <div class="cloud" style="left:550px;top:50px;width:70px;height:25px"></div>
+            <div class="cloud" style="left:760px;top:15px;width:100px;height:30px"></div>
 
             <div id="player"></div>
 
             <div class="platform ground"></div>
-
             <div class="platform platform1"></div>
             <div class="platform platform2"></div>
             <div class="platform platform3"></div>
 
-            <div class="coin coin1"></div>
-            <div class="coin coin2"></div>
-            <div class="coin coin3"></div>
+            <div class="coin" id="coin1"></div>
+            <div class="coin" id="coin2"></div>
+            <div class="coin" id="coin3"></div>
 
-            <div class="enemy enemy1"></div>
-            <div class="enemy enemy2"></div>
+            <div class="enemy" id="enemy1"></div>
+            <div class="enemy" id="enemy2"></div>
+
+            <div id="goal"></div>
 
             <div id="message">
-                <h1>GAME OVER</h1>
-                <button onclick="restartGame()">Restart</button>
+                <h1 id="messageText">GAME OVER</h1>
+                <button id="messageBtn" onclick="restartGame()">Restart</button>
             </div>
-
         </div>
 
         <div class="controls">
-            <p>← → Move | ↑ Jump</p>
+            <p>&larr; &rarr; Move &nbsp;|&nbsp; &uarr; / Space = Jump</p>
         </div>
-
     </div>
 
     <script src="script.js"></script>
