@@ -99,3 +99,49 @@ body {
     left: 700px;
     bottom: 130px;
 }
+
+/* Coins */
+
+.coin {
+    width: 25px;
+    height: 25px;
+    background: gold;
+    border: 3px solid orange;
+    border-radius: 50%;
+    position: absolute;
+}
+
+.coin1 {
+    left: 250px;
+    bottom: 165px;
+}
+
+.coin2 {
+    left: 500px;
+    bottom: 245px;
+}
+
+.coin3 {
+    left: 750px;
+    bottom: 165px;
+}
+
+/* Enemies */
+
+.enemy {
+    width: 35px;
+    height: 30px;
+    background: #8b0000;
+    position: absolute;
+    border-radius: 15px 15px 5px 5px;
+}
+
+.enemy1 {
+    left: 350px;
+    bottom: 55px;
+}
+
+.enemy2 {
+    left: 620px;
+    bottom: 55px;
+}
