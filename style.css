@@ -1,0 +1,31 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background: #222;
+    font-family: Arial, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+}
+
+.game-container {
+    text-align: center;
+}
+
+#game {
+    width: 900px;
+    height: 500px;
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(
+        skyblue 0%,
+        #87ceeb 70%,
+        #6ecb3c 70%,
+        #6ecb3c 100%
+    );
+}
