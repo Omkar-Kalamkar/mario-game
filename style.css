@@ -17,6 +17,16 @@ body {
     text-align: center;
 }
 
+.hud {
+    width: 900px;
+    background: #111;
+    color: white;
+    padding: 12px;
+    display: flex;
+    justify-content: space-between;
+    font-size: 20px;
+}
+
 #game {
     width: 900px;
     height: 500px;
@@ -28,4 +38,64 @@ body {
         #6ecb3c 70%,
         #6ecb3c 100%
     );
+}
+
+/* Player */
+
+#player {
+    width: 35px;
+    height: 45px;
+    background: red;
+    position: absolute;
+    left: 80px;
+    bottom: 55px;
+    border-radius: 8px 8px 3px 3px;
+    z-index: 10;
+}
+
+#player::before {
+    content: "";
+    position: absolute;
+    width: 40px;
+    height: 12px;
+    background: red;
+    top: -6px;
+    left: -3px;
+    border-radius: 10px;
+}
+
+/* Platforms */
+
+.platform {
+    position: absolute;
+    background: #8b4513;
+    border-top: 8px solid #228b22;
+}
+
+.ground {
+    width: 100%;
+    height: 55px;
+    bottom: 0;
+    left: 0;
+}
+
+.platform1 {
+    width: 150px;
+    height: 25px;
+    left: 200px;
+    bottom: 130px;
+}
+
+.platform2 {
+    width: 150px;
+    height: 25px;
+    left: 450px;
+    bottom: 210px;
+}
+
+.platform3 {
+    width: 150px;
+    height: 25px;
+    left: 700px;
+    bottom: 130px;
 }
