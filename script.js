@@ -11,16 +11,20 @@ var PLAYER_H = 45;
 var GAME_W = 900;
 var GRAVITY = 0.8;
 var JUMP_POWER = 15;
-var MOVE_SPEED = 5;
 var ENEMY_W = 35;
 var ENEMY_H = 30;
 var COIN_SIZE = 25;
 var GOAL_X = 840;
 
+var ACCELERATION = 0.55;
+var DECELERATION = 0.45;
+var MAX_SPEED = 5;
+
 var playerX = 80;
 var playerY = 55;
 var prevY = 55;
 var velocityY = 0;
+var playerVX = 0;
 var isOnGround = true;
 var gameOver = false;
 var gameWon = false;
@@ -64,6 +68,9 @@ document.addEventListener("keydown", function(e) {
 document.addEventListener("keyup", function(e) {
     if (e.key === "ArrowLeft") keys.left = false;
     if (e.key === "ArrowRight") keys.right = false;
+    if ((e.key === "ArrowUp" || e.key === " ") && velocityY > 5) {
+        velocityY = 5;
+    }
 });
 
 /* ===== JUMP ===== */
@@ -80,11 +87,26 @@ function doJump() {
 function gameLoop() {
     if (gameOver || gameWon) return;
 
-    /* Movement */
-    if (keys.left) playerX -= MOVE_SPEED;
-    if (keys.right) playerX += MOVE_SPEED;
-    if (playerX < 0) playerX = 0;
-    if (playerX > GAME_W - PLAYER_W) playerX = GAME_W - PLAYER_W;
+    /* Horizontal movement with acceleration and deceleration */
+    if (keys.left) {
+        playerVX -= ACCELERATION;
+        if (playerVX < -MAX_SPEED) playerVX = -MAX_SPEED;
+    }
+    if (keys.right) {
+        playerVX += ACCELERATION;
+        if (playerVX > MAX_SPEED) playerVX = MAX_SPEED;
+    }
+    if (!keys.left && !keys.right) {
+        if (Math.abs(playerVX) < DECELERATION) {
+            playerVX = 0;
+        } else {
+            playerVX -= Math.sign(playerVX) * DECELERATION;
+        }
+    }
+
+    playerX += playerVX;
+    if (playerX < 0) { playerX = 0; playerVX = 0; }
+    if (playerX > GAME_W - PLAYER_W) { playerX = GAME_W - PLAYER_W; playerVX = 0; }
 
     /* Physics */
     prevY = playerY;
@@ -172,6 +194,20 @@ function gameLoop() {
     /* Update DOM */
     player.style.left = playerX + "px";
     player.style.bottom = playerY + "px";
+
+    var tiltDeg = playerVX * 1.5;
+    var squashScale = 1;
+    if (!isOnGround) {
+        squashScale = velocityY > 0 ? 1.06 : 0.94;
+    }
+    player.style.transform = "rotate(" + tiltDeg + "deg) scaleY(" + squashScale + ")";
+
+    if (!isOnGround) {
+        player.classList.add("airborne");
+    } else {
+        player.classList.remove("airborne");
+    }
+
     for (var i = 0; i < enemiesData.length; i++) {
         var e = enemiesData[i];
         if (e.alive) e.el.style.left = e.x + "px";
@@ -195,6 +231,7 @@ function restartGame() {
     playerY = 55;
     prevY = 55;
     velocityY = 0;
+    playerVX = 0;
     isOnGround = true;
     gameOver = false;
     gameWon = false;
@@ -223,6 +260,8 @@ function restartGame() {
 
     player.style.left = playerX + "px";
     player.style.bottom = playerY + "px";
+    player.style.transform = "";
+    player.classList.remove("airborne");
 
     requestAnimationFrame(gameLoop);
 }
