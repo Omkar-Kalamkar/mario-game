@@ -283,6 +283,46 @@ body {
     background: #ff4444;
 }
 
+/* Moving Platforms */
+.moving-platform {
+    position: absolute;
+    background: linear-gradient(to bottom, #1e90ff, #1565c0);
+    border-top: 5px solid #4dd0e1;
+    z-index: 2;
+}
+
+.moving-platform::before {
+    content: "";
+    position: absolute;
+    top: 5px;
+    left: 8px;
+    right: 8px;
+    height: 3px;
+    background: repeating-linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0.4) 0px,
+        rgba(255, 255, 255, 0.4) 8px,
+        transparent 8px,
+        transparent 16px
+    );
+}
+
+.moving-platform::after {
+    content: "";
+    position: absolute;
+    bottom: 3px;
+    left: 8px;
+    right: 8px;
+    height: 3px;
+    background: repeating-linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0.25) 0px,
+        rgba(255, 255, 255, 0.25) 8px,
+        transparent 8px,
+        transparent 16px
+    );
+}
+
 .controls {
     width: 900px;
     background: #111;
