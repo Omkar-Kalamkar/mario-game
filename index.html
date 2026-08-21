@@ -10,6 +10,10 @@
     <div class="game-container">
         <div class="hud">
             <span>SCORE: <span id="score">0</span></span>
+            <span id="powerHud">
+                <span id="powerName">NO POWER-UP</span>
+                <span id="powerTimerBarWrap"><span id="powerTimerBar"></span></span>
+            </span>
             <span>COINS: <span id="coinCount">0</span> / 3</span>
         </div>
 
@@ -36,6 +40,9 @@
             <div class="coin" id="coin1"></div>
             <div class="coin" id="coin2"></div>
             <div class="coin" id="coin3"></div>
+
+            <div class="powerup super-jump" id="powerJump" style="left:185px; bottom:135px;"></div>
+            <div class="powerup speed-boost" id="powerSpeed" style="left:780px; bottom:170px;"></div>
 
             <div class="enemy" id="enemy1"></div>
             <div class="enemy" id="enemy2"></div>

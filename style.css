@@ -164,6 +164,79 @@ body {
     bottom: 165px;
 }
 
+/* Power-Ups */
+.powerup {
+    width: 30px;
+    height: 30px;
+    position: absolute;
+    z-index: 4;
+}
+
+/* Super Jump: green capsule with a white up-arrow */
+.powerup.super-jump {
+    background: radial-gradient(circle at 35% 30%, #7cfc9b, #2ecc71, #1e8e4e);
+    border: 2px solid #0e5c30;
+    border-radius: 10px;
+    animation: powerBob 1.6s ease-in-out infinite, jumpGlow 1.6s ease-in-out infinite;
+}
+
+.powerup.super-jump::before {
+    content: "";
+    position: absolute;
+    top: 5px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+    border-bottom: 11px solid white;
+}
+
+.powerup.super-jump::after {
+    content: "";
+    position: absolute;
+    bottom: 5px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 6px;
+    height: 9px;
+    background: white;
+}
+
+/* Speed Boost: orange lightning bolt */
+.powerup.speed-boost {
+    background: radial-gradient(circle at 35% 30%, #ffe082, #ff9800, #e65100);
+    clip-path: polygon(55% 0, 20% 55%, 45% 55%, 40% 100%, 85% 40%, 58% 40%);
+    animation: powerBob 1.6s ease-in-out infinite, boltPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes powerBob {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+}
+
+@keyframes jumpGlow {
+    0%, 100% { box-shadow: 0 0 6px rgba(46, 204, 113, 0.5); }
+    50% { box-shadow: 0 0 16px rgba(46, 204, 113, 1); }
+}
+
+@keyframes boltPulse {
+    0%, 100% { filter: drop-shadow(0 0 4px rgba(255, 152, 0, 0.5)); }
+    50% { filter: drop-shadow(0 0 14px rgba(255, 152, 0, 1)); }
+}
+
+/* Player aura while a power-up is active */
+#player.power-superjump {
+    box-shadow: 0 0 16px 5px rgba(46, 204, 113, 0.9);
+    border: 2px solid #2ecc71;
+}
+
+#player.power-speedboost {
+    box-shadow: 0 0 16px 5px rgba(255, 152, 0, 0.9);
+    border: 2px solid #ff9800;
+}
+
 /* Enemies */
 .enemy {
     width: 35px;
@@ -330,4 +403,49 @@ body {
     padding: 8px;
     font-size: 14px;
     text-align: center;
+}
+
+/* Power-Up HUD indicator */
+#powerHud {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+#powerName {
+    font-size: 14px;
+    padding: 3px 10px;
+    border-radius: 12px;
+    background: #333;
+    color: #888;
+    letter-spacing: 1px;
+}
+
+#powerName.power-label-superjump {
+    background: rgba(46, 204, 113, 0.25);
+    color: #7cfcb0;
+    box-shadow: 0 0 8px rgba(46, 204, 113, 0.6);
+}
+
+#powerName.power-label-speedboost {
+    background: rgba(255, 152, 0, 0.25);
+    color: #ffc46b;
+    box-shadow: 0 0 8px rgba(255, 152, 0, 0.6);
+}
+
+#powerTimerBarWrap {
+    display: inline-block;
+    width: 90px;
+    height: 10px;
+    background: #333;
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+#powerTimerBar {
+    display: block;
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(to right, #2ecc71, #ff9800);
+    border-radius: 5px;
 }

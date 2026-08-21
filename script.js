@@ -5,6 +5,8 @@ var coinCountEl = document.getElementById("coinCount");
 var messageEl = document.getElementById("message");
 var messageTextEl = document.getElementById("messageText");
 var messageBtnEl = document.getElementById("messageBtn");
+var powerNameEl = document.getElementById("powerName");
+var powerTimerBar = document.getElementById("powerTimerBar");
 
 var PLAYER_W = 35;
 var PLAYER_H = 45;
@@ -20,6 +22,73 @@ var GOAL_X = 840;
 var ACCELERATION = 0.55;
 var DECELERATION = 0.45;
 var MAX_SPEED = 5;
+
+/* ===== POWER-UPS ===== */
+
+var POWERUP_SIZE = 30;
+var SUPER_JUMP_POWER = 21;
+var SPEED_BOOST_MAX = 8;
+var SUPER_JUMP_DURATION = 8000;
+var SPEED_BOOST_DURATION = 7000;
+
+var activePower = null;   /* "superjump", "speedboost" or null */
+var powerEndTime = 0;     /* timestamp when the effect expires */
+
+var powerUpsData = [
+    { x: 185, y: 135, type: "superjump", collected: false,
+      el: document.getElementById("powerJump") },
+    { x: 780, y: 170, type: "speedboost", collected: false,
+      el: document.getElementById("powerSpeed") }
+];
+
+function currentJumpPower() {
+    if (activePower === "superjump") return SUPER_JUMP_POWER;
+    return JUMP_POWER;
+}
+
+function currentMaxSpeed() {
+    if (activePower === "speedboost") return SPEED_BOOST_MAX;
+    return MAX_SPEED;
+}
+
+function collectPowerUp(pu) {
+    pu.collected = true;
+    pu.el.style.display = "none";
+    score += 100;
+    scoreEl.textContent = score;
+
+    activePower = pu.type;
+    powerEndTime = performance.now() +
+        (pu.type === "superjump" ? SUPER_JUMP_DURATION : SPEED_BOOST_DURATION);
+
+    player.classList.remove("power-superjump", "power-speedboost");
+    player.classList.add(pu.type === "superjump" ? "power-superjump" : "power-speedboost");
+}
+
+function expirePowerUp() {
+    activePower = null;
+    powerEndTime = 0;
+    player.classList.remove("power-superjump", "power-speedboost");
+}
+
+function updatePowerHud() {
+    if (!activePower) {
+        powerNameEl.textContent = "NO POWER-UP";
+        powerNameEl.className = "";
+        powerTimerBar.style.width = "0%";
+        return;
+    }
+    var total = activePower === "superjump" ? SUPER_JUMP_DURATION : SPEED_BOOST_DURATION;
+    var remaining = powerEndTime - performance.now();
+    if (remaining < 0) remaining = 0;
+    var secondsLeft = Math.ceil(remaining / 1000);
+
+    powerNameEl.textContent =
+        (activePower === "superjump" ? "SUPER JUMP" : "SPEED BOOST") + ": " + secondsLeft + "s";
+    powerNameEl.className = activePower === "superjump"
+        ? "power-label-superjump" : "power-label-speedboost";
+    powerTimerBar.style.width = Math.ceil((remaining / total) * 100) + "%";
+}
 
 var playerX = 80;
 var playerY = 55;
@@ -100,7 +169,7 @@ document.addEventListener("keyup", function(e) {
 
 function doJump() {
     if (isOnGround && !gameOver && !gameWon) {
-        velocityY = JUMP_POWER;
+        velocityY = currentJumpPower();
         isOnGround = false;
         onMovingPlatform = null;
     }
@@ -141,11 +210,11 @@ function gameLoop() {
     /* Horizontal movement with acceleration and deceleration */
     if (keys.left) {
         playerVX -= ACCELERATION;
-        if (playerVX < -MAX_SPEED) playerVX = -MAX_SPEED;
+        if (playerVX < -currentMaxSpeed()) playerVX = -currentMaxSpeed();
     }
     if (keys.right) {
         playerVX += ACCELERATION;
-        if (playerVX > MAX_SPEED) playerVX = MAX_SPEED;
+        if (playerVX > currentMaxSpeed()) playerVX = currentMaxSpeed();
     }
     if (!keys.left && !keys.right) {
         if (Math.abs(playerVX) < DECELERATION) {
@@ -223,6 +292,22 @@ function gameLoop() {
         }
     }
 
+    /* Power-up collection */
+    for (var i = 0; i < powerUpsData.length; i++) {
+        var pu = powerUpsData[i];
+        if (pu.collected) continue;
+        if (playerX + PLAYER_W > pu.x && playerX < pu.x + POWERUP_SIZE &&
+            playerY + PLAYER_H > pu.y && playerY < pu.y + POWERUP_SIZE) {
+            collectPowerUp(pu);
+        }
+    }
+
+    /* Power-up timer expiry (checked every frame, no setTimeout) */
+    if (activePower && performance.now() >= powerEndTime) {
+        expirePowerUp();
+    }
+    updatePowerHud();
+
     /* Enemy collisions */
     for (var i = 0; i < enemiesData.length; i++) {
         var e = enemiesData[i];
@@ -234,7 +319,7 @@ function gameLoop() {
                 e.el.style.display = "none";
                 score += 100;
                 scoreEl.textContent = score;
-                velocityY = JUMP_POWER * 0.6;
+                velocityY = currentJumpPower() * 0.6;
                 onMovingPlatform = null;
             } else {
                 gameOver = true;
@@ -306,6 +391,17 @@ function restartGame() {
     keys.left = false;
     keys.right = false;
     onMovingPlatform = null;
+
+    /* Reset power-ups and active effects */
+    activePower = null;
+    powerEndTime = 0;
+    player.classList.remove("power-superjump", "power-speedboost");
+
+    for (var i = 0; i < powerUpsData.length; i++) {
+        powerUpsData[i].collected = false;
+        powerUpsData[i].el.style.display = "block";
+    }
+    updatePowerHud();
 
     for (var i = 0; i < coinsData.length; i++) {
         coinsData[i].collected = false;
