@@ -138,12 +138,113 @@ var coinsData = [
     { x: 750, y: 165, collected: false, el: document.getElementById("coin3") }
 ];
 
+/* ===== ENEMIES ===== */
+
+var STOMP_SCORE = 150;          /* points for jumping on an enemy */
+var STOMP_BOUNCE_FACTOR = 0.6;  /* bounce strength after a stomp */
+var DEFEAT_ANIM_MS = 450;       /* how long the squash animation lasts */
+
+/* Chaser detection ranges (in pixels).
+   It starts chasing inside ENTER range and only gives up outside
+   EXIT range, so it does not flip between states at the edge. */
+var CHASE_ENTER_X = 160;
+var CHASE_EXIT_X = 210;
+var CHASE_RANGE_Y = 70;
+
+/* type "patrol" = walks back and forth between minX and maxX.
+   type "chaser" = patrols too, but hunts the player when close.
+   Each enemy stays inside its own area, so none of them can
+   leave the 900x500 game area or walk off their platform. */
 var enemiesData = [
-    { x: 350, y: 55, dir: 1, speed: 2, alive: true, minX: 300, maxX: 430,
-      el: document.getElementById("enemy1"), startX: 350, startDir: 1 },
-    { x: 620, y: 55, dir: -1, speed: 2, alive: true, minX: 550, maxX: 700,
-      el: document.getElementById("enemy2"), startX: 620, startDir: -1 }
+    { type: "patrol", x: 340, y: 55, dir: -1, speed: 2,
+      minX: 280, maxX: 440,
+      el: document.getElementById("enemy1") },
+    { type: "chaser", x: 590, y: 55, dir: 1, speed: 1.6, chaseSpeed: 3.2,
+      minX: 470, maxX: 690,
+      el: document.getElementById("enemy2") },
+    { type: "patrol", x: 740, y: 55, dir: -1, speed: 2.2,
+      minX: 700, maxX: 800,
+      el: document.getElementById("enemy3") },
+    { type: "patrol", x: 730, y: 155, dir: -1, speed: 1.5,
+      minX: 702, maxX: 813,
+      el: document.getElementById("enemy4") }
 ];
+
+/* Fill in the shared runtime values every enemy needs */
+for (var i = 0; i < enemiesData.length; i++) {
+    var eInit = enemiesData[i];
+    eInit.alive = true;
+    eInit.chasing = false;
+    eInit.defeatedAt = 0;
+    eInit.startX = eInit.x;
+    eInit.startDir = eInit.dir;
+    eInit.faceLeft = eInit.dir < 0;
+    eInit.el.style.left = eInit.x + "px";
+    eInit.el.style.bottom = eInit.y + "px";
+}
+
+/* One enemy AI step: patrol boundaries, chase logic for chasers */
+function updateEnemies() {
+    for (var i = 0; i < enemiesData.length; i++) {
+        var e = enemiesData[i];
+
+        /* Defeated enemies just wait until their animation is over */
+        if (!e.alive) {
+            if (e.defeatedAt !== 0 &&
+                performance.now() - e.defeatedAt > DEFEAT_ANIM_MS) {
+                e.el.style.display = "none";
+                e.defeatedAt = 0;
+            }
+            continue;
+        }
+
+        var moveDir = e.dir;
+        var moveSpeed = e.speed;
+
+        if (e.type === "chaser") {
+            var playerCx = playerX + PLAYER_W / 2;
+            var enemyCx = e.x + ENEMY_W / 2;
+            var distX = Math.abs(playerCx - enemyCx);
+            var distY = Math.abs((playerY + PLAYER_H / 2) - (e.y + ENEMY_H / 2));
+
+            if (!e.chasing && distX <= CHASE_ENTER_X && distY <= CHASE_RANGE_Y) {
+                e.chasing = true;
+            } else if (e.chasing &&
+                       (distX > CHASE_EXIT_X || distY > CHASE_RANGE_Y)) {
+                e.chasing = false;   /* player escaped: back to patrolling */
+            }
+
+            if (e.chasing) {
+                moveDir = playerCx < enemyCx ? -1 : 1;
+                moveSpeed = e.chaseSpeed;
+            }
+        }
+
+        e.x += moveDir * moveSpeed;
+
+        /* Turn around at the edges of the enemy's own area */
+        if (e.x <= e.minX) { e.x = e.minX; moveDir = 1; }
+        if (e.x >= e.maxX) { e.x = e.maxX; moveDir = -1; }
+
+        if (!e.chasing) e.dir = moveDir;
+        e.faceLeft = moveDir < 0;
+    }
+}
+
+/* Player jumped on an enemy: squash it, award points, bounce up */
+function defeatEnemy(e) {
+    e.alive = false;          /* also blocks any second stomp on this enemy */
+    e.chasing = false;
+    e.defeatedAt = performance.now();
+    e.el.classList.add("defeated");
+
+    score += STOMP_SCORE;
+    scoreEl.textContent = score;
+
+    velocityY = currentJumpPower() * STOMP_BOUNCE_FACTOR;
+    isOnGround = false;
+    onMovingPlatform = null;
+}
 
 /* ===== INPUT ===== */
 
@@ -268,14 +369,8 @@ function gameLoop() {
         onMovingPlatform = null;
     }
 
-    /* Enemies patrol */
-    for (var i = 0; i < enemiesData.length; i++) {
-        var e = enemiesData[i];
-        if (!e.alive) continue;
-        e.x += e.speed * e.dir;
-        if (e.x <= e.minX) { e.x = e.minX; e.dir = 1; }
-        if (e.x >= e.maxX) { e.x = e.maxX; e.dir = -1; }
-    }
+    /* Enemy AI */
+    updateEnemies();
 
     /* Coin collection */
     for (var i = 0; i < coinsData.length; i++) {
@@ -308,24 +403,28 @@ function gameLoop() {
     }
     updatePowerHud();
 
-    /* Enemy collisions */
+    /* Enemy collisions (stomp from above vs. side hit) */
     for (var i = 0; i < enemiesData.length; i++) {
         var e = enemiesData[i];
-        if (!e.alive) continue;
-        if (playerX + PLAYER_W > e.x && playerX < e.x + ENEMY_W &&
-            playerY + PLAYER_H > e.y && playerY < e.y + ENEMY_H) {
-            if (velocityY < 0 && playerY >= e.y + ENEMY_H * 0.5) {
-                e.alive = false;
-                e.el.style.display = "none";
-                score += 100;
-                scoreEl.textContent = score;
-                velocityY = currentJumpPower() * 0.6;
-                onMovingPlatform = null;
-            } else {
-                gameOver = true;
-                showMessage("GAME OVER");
-                return;
-            }
+        if (!e.alive) continue;   /* never collide with a defeated enemy */
+
+        var horizontalHit =
+            playerX + PLAYER_W > e.x && playerX < e.x + ENEMY_W;
+        var verticalHit =
+            playerY + PLAYER_H > e.y && playerY < e.y + ENEMY_H;
+        if (!horizontalHit || !verticalHit) continue;
+
+        var enemyTop = e.y + ENEMY_H;
+
+        /* Reliable stomp check: the player must be falling and its feet
+           must have been above the enemy's head in the previous frame.
+           Using prevY makes this work even when falling very fast. */
+        if (velocityY < 0 && prevY >= enemyTop - 4) {
+            defeatEnemy(e);
+        } else {
+            gameOver = true;
+            showMessage("GAME OVER");
+            return;
         }
     }
 
@@ -353,8 +452,13 @@ function gameLoop() {
         player.classList.remove("airborne");
     }
 
+    /* Draw enemies: position, facing direction and chase glow */
     for (var i = 0; i < enemiesData.length; i++) {
         var e = enemiesData[i];
+        e.el.classList.toggle("face-left", e.alive && e.faceLeft);
+        if (e.type === "chaser") {
+            e.el.classList.toggle("chasing", e.alive && e.chasing);
+        }
         if (e.alive) e.el.style.left = e.x + "px";
     }
 
@@ -408,13 +512,19 @@ function restartGame() {
         coinsData[i].el.style.display = "block";
     }
 
+    /* Reset every enemy: position, direction and state */
     for (var i = 0; i < enemiesData.length; i++) {
         var e = enemiesData[i];
         e.alive = true;
+        e.chasing = false;
+        e.defeatedAt = 0;
         e.x = e.startX;
         e.dir = e.startDir;
+        e.faceLeft = e.startDir < 0;
         e.el.style.display = "block";
         e.el.style.left = e.x + "px";
+        e.el.style.bottom = e.y + "px";
+        e.el.classList.remove("defeated", "chasing", "face-left");
     }
 
     for (var i = 0; i < movingPlatforms.length; i++) {
