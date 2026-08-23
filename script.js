@@ -1,12 +1,32 @@
+/* ============================================================
+   MARIO-STYLE PLATFORMER
+   Day 5: multiple levels and level progression.
+
+   All levels are described by data in the LEVELS array below.
+   loadLevel() destroys the old entities and builds the new ones,
+   so the gameplay code (movement, collision, enemies, power-ups)
+   works exactly the same way for every level.
+   ============================================================ */
+
+/* ===== ELEMENT REFERENCES ===== */
+
 var player = document.getElementById("player");
 var game = document.getElementById("game");
+var entities = document.getElementById("entities");
 var scoreEl = document.getElementById("score");
 var coinCountEl = document.getElementById("coinCount");
+var coinTotalEl = document.getElementById("coinTotal");
+var levelNumEl = document.getElementById("levelNum");
 var messageEl = document.getElementById("message");
 var messageTextEl = document.getElementById("messageText");
+var messageInfoEl = document.getElementById("messageInfo");
 var messageBtnEl = document.getElementById("messageBtn");
 var powerNameEl = document.getElementById("powerName");
 var powerTimerBar = document.getElementById("powerTimerBar");
+var goalEl = document.getElementById("goal");
+var bannerEl = document.getElementById("levelBanner");
+
+/* ===== CONSTANTS ===== */
 
 var PLAYER_W = 35;
 var PLAYER_H = 45;
@@ -17,7 +37,10 @@ var JUMP_POWER = 15;
 var ENEMY_W = 35;
 var ENEMY_H = 30;
 var COIN_SIZE = 25;
-var GOAL_X = 840;
+
+/* Falling this far below the screen means the player dropped
+   into one of the pits in the ground (levels 2 and 3). */
+var PIT_FALL_Y = -70;
 
 var ACCELERATION = 0.55;
 var DECELERATION = 0.45;
@@ -33,13 +56,6 @@ var SPEED_BOOST_DURATION = 7000;
 
 var activePower = null;   /* "superjump", "speedboost" or null */
 var powerEndTime = 0;     /* timestamp when the effect expires */
-
-var powerUpsData = [
-    { x: 185, y: 135, type: "superjump", collected: false,
-      el: document.getElementById("powerJump") },
-    { x: 780, y: 170, type: "speedboost", collected: false,
-      el: document.getElementById("powerSpeed") }
-];
 
 function currentJumpPower() {
     if (activePower === "superjump") return SUPER_JUMP_POWER;
@@ -90,6 +106,8 @@ function updatePowerHud() {
     powerTimerBar.style.width = Math.ceil((remaining / total) * 100) + "%";
 }
 
+/* ===== PLAYER / GAME STATE ===== */
+
 var playerX = 80;
 var playerY = 55;
 var prevY = 55;
@@ -98,47 +116,24 @@ var playerVX = 0;
 var isOnGround = true;
 var gameOver = false;
 var gameWon = false;
+
+/* score and totalCoinsRun last for the whole game (all levels),
+   coinCount only counts the coins of the current level. */
 var score = 0;
 var coinCount = 0;
+var totalCoinsRun = 0;
 
 var keys = { left: false, right: false };
 
-var staticPlatforms = [
-    { left: 0, bottom: 0, width: 900, height: 55 },
-    { left: 200, bottom: 130, width: 150, height: 25 },
-    { left: 450, bottom: 210, width: 150, height: 25 },
-    { left: 700, bottom: 130, width: 150, height: 25 }
-];
+/* Current level bookkeeping */
+var currentLevelIndex = 0;   /* index into LEVELS (0 = level 1) */
+var currentGoalX = 850;      /* flag position of the current level */
 
-var movingPlatforms = [
-    {
-        left: 320, bottom: 170, width: 100, height: 18,
-        initLeft: 320, initBottom: 170,
-        minX: 300, maxX: 480, minY: 170, maxY: 170,
-        speedX: 1.5, speedY: 0, dirX: 1, dirY: 1,
-        dx: 0, dy: 0, moving: true,
-        el: document.getElementById("movingPlat1")
-    },
-    {
-        left: 50, bottom: 70, width: 100, height: 18,
-        initLeft: 50, initBottom: 70,
-        minX: 50, maxX: 50, minY: 70, maxY: 230,
-        speedX: 0, speedY: 1.2, dirX: 1, dirY: 1,
-        dx: 0, dy: 0, moving: true,
-        el: document.getElementById("movingPlat2")
-    }
-];
+/* Loop handling: only ever one animation frame scheduled at a time */
+var rafId = null;
+var levelStartTimer = null;
 
-var platforms = staticPlatforms.concat(movingPlatforms);
-var onMovingPlatform = null;
-
-var coinsData = [
-    { x: 250, y: 165, collected: false, el: document.getElementById("coin1") },
-    { x: 500, y: 245, collected: false, el: document.getElementById("coin2") },
-    { x: 750, y: 165, collected: false, el: document.getElementById("coin3") }
-];
-
-/* ===== ENEMIES ===== */
+/* ===== ENEMY CONSTANTS ===== */
 
 var STOMP_SCORE = 150;          /* points for jumping on an enemy */
 var STOMP_BOUNCE_FACTOR = 0.6;  /* bounce strength after a stomp */
@@ -151,36 +146,257 @@ var CHASE_ENTER_X = 160;
 var CHASE_EXIT_X = 210;
 var CHASE_RANGE_Y = 70;
 
-/* type "patrol" = walks back and forth between minX and maxX.
-   type "chaser" = patrols too, but hunts the player when close.
-   Each enemy stays inside its own area, so none of them can
-   leave the 900x500 game area or walk off their platform. */
-var enemiesData = [
-    { type: "patrol", x: 340, y: 55, dir: -1, speed: 2,
-      minX: 280, maxX: 440,
-      el: document.getElementById("enemy1") },
-    { type: "chaser", x: 590, y: 55, dir: 1, speed: 1.6, chaseSpeed: 3.2,
-      minX: 470, maxX: 690,
-      el: document.getElementById("enemy2") },
-    { type: "patrol", x: 740, y: 55, dir: -1, speed: 2.2,
-      minX: 700, maxX: 800,
-      el: document.getElementById("enemy3") },
-    { type: "patrol", x: 730, y: 155, dir: -1, speed: 1.5,
-      minX: 702, maxX: 813,
-      el: document.getElementById("enemy4") }
+/* ============================================================
+   LEVEL DEFINITIONS
+
+   Every level is a plain object:
+     theme      CSS class on #game that sets the atmosphere
+     start      player spawn point {x, y}
+     goalX      x position of the goal flag (stands on the ground)
+     platforms  static rectangles {left, bottom, width, height}
+                (ground segments first, then floating platforms)
+     movers     moving platforms {left, bottom, width, height,
+                minX, maxX, minY, maxY, speedX, speedY}
+     coins      coin positions {x, y} (y = bottom of the coin)
+     powerUps   {x, y, type} with type "superjump" or "speedboost"
+     enemies    {type, x, y, dir, speed, minX, maxX} and optional
+                chaseSpeed for chasers; they patrol between
+                minX and maxX and never leave their platform
+
+   Jump reach: about 140px high and 180px far, so every gap and
+   step below was checked to stay inside those limits.
+   ============================================================ */
+
+var LEVELS = [
+
+    /* ---- LEVEL 1: EASY ------------------------------------
+       Wide safe ground, big platforms, slow patrols, plenty of
+       easy coins. Introduces both power-ups. */
+    {
+        theme: "theme-1",
+        start: { x: 60, y: 55 },
+        goalX: 850,
+        platforms: [
+            { left: 0,   bottom: 0,   width: 900, height: 55 },
+            { left: 180, bottom: 125, width: 140, height: 22 },
+            { left: 420, bottom: 200, width: 140, height: 22 },
+            { left: 660, bottom: 125, width: 140, height: 22 }
+        ],
+        movers: [
+            /* Slow elevator on the left: carries you up to a bonus coin */
+            { left: 40,  bottom: 80,  width: 110, height: 18,
+              minX: 40, maxX: 40, minY: 80, maxY: 240, speedX: 0,   speedY: 1.2 },
+            /* Low horizontal taxi under the middle platform */
+            { left: 330, bottom: 120, width: 100, height: 18,
+              minX: 300, maxX: 480, minY: 120, maxY: 120, speedX: 1.5, speedY: 0 }
+        ],
+        coins: [
+            { x: 120, y: 62 },
+            { x: 245, y: 152 },
+            { x: 485, y: 227 },
+            { x: 720, y: 152 },
+            { x: 85,  y: 265 }
+        ],
+        powerUps: [
+            { x: 760, y: 182, type: "superjump" },
+            { x: 530, y: 235, type: "speedboost" }
+        ],
+        enemies: [
+            { type: "patrol", x: 310, y: 55, dir: -1, speed: 1.5, minX: 250, maxX: 380 },
+            { type: "patrol", x: 600, y: 55, dir: -1, speed: 1.8, minX: 550, maxX: 640 }
+        ]
+    },
+
+    /* ---- LEVEL 2: MEDIUM ----------------------------------
+       The ground is broken into three islands with two deadly
+       pits. More platforms, more enemies, a chaser guarding the
+       goal and an elevator hiding a super jump power-up. */
+    {
+        theme: "theme-2",
+        start: { x: 50, y: 55 },
+        goalX: 855,
+        platforms: [
+            { left: 0,   bottom: 0,   width: 270, height: 55 },
+            { left: 360, bottom: 0,   width: 220, height: 55 },
+            { left: 660, bottom: 0,   width: 240, height: 55 },
+            { left: 90,  bottom: 130, width: 120, height: 22 },
+            { left: 300, bottom: 190, width: 110, height: 22 },
+            { left: 450, bottom: 260, width: 110, height: 22 },
+            { left: 620, bottom: 200, width: 120, height: 22 }
+        ],
+        movers: [
+            /* High shuttle above the third platform (bonus route) */
+            { left: 340, bottom: 300, width: 90,  height: 18,
+              minX: 340, maxX: 520, minY: 300, maxY: 300, speedX: 1.8, speedY: 0 },
+            /* Elevator on the right: secret ride up to a power-up */
+            { left: 760, bottom: 90,  width: 100, height: 18,
+              minX: 760, maxX: 760, minY: 90, maxY: 250, speedX: 0, speedY: 1.4 }
+        ],
+        coins: [
+            { x: 150, y: 157 },
+            { x: 335, y: 217 },
+            { x: 490, y: 287 },
+            { x: 665, y: 227 },
+            { x: 305, y: 115 },   /* floats over the first pit */
+            { x: 830, y: 62 }
+        ],
+        powerUps: [
+            { x: 105, y: 168, type: "speedboost" },
+            { x: 790, y: 290, type: "superjump" }
+        ],
+        enemies: [
+            { type: "patrol", x: 230, y: 55,  dir: -1, speed: 2,   minX: 120, maxX: 250 },
+            { type: "patrol", x: 400, y: 55,  dir: 1,  speed: 2.2, minX: 370, maxX: 560 },
+            { type: "chaser", x: 860, y: 55,  dir: -1, speed: 1.8, chaseSpeed: 3.2,
+              minX: 670, maxX: 860 },
+            { type: "patrol", x: 690, y: 222, dir: -1, speed: 1.6, minX: 622, maxX: 703 }
+        ]
+    },
+
+    /* ---- LEVEL 3: HARD ------------------------------------
+       Four small islands, long pits, stepping stones over the
+       gaps, a ferry platform across the wide middle pit and two
+       chasers (one guarding the goal). Few safe areas. */
+    {
+        theme: "theme-3",
+        start: { x: 50, y: 55 },
+        goalX: 855,
+        platforms: [
+            { left: 0,   bottom: 0,   width: 200, height: 55 },
+            { left: 340, bottom: 0,   width: 160, height: 55 },
+            { left: 640, bottom: 0,   width: 90,  height: 55 },
+            { left: 770, bottom: 0,   width: 130, height: 55 },
+            { left: 225, bottom: 130, width: 60,  height: 18 },
+            { left: 360, bottom: 140, width: 90,  height: 20 },
+            { left: 470, bottom: 210, width: 80,  height: 20 },
+            { left: 380, bottom: 280, width: 90,  height: 20 },
+            { left: 560, bottom: 250, width: 80,  height: 20 },
+            { left: 690, bottom: 155, width: 70,  height: 18 },
+            { left: 790, bottom: 225, width: 70,  height: 18 }
+        ],
+        movers: [
+            /* Lift over the first pit (alternative to the stone) */
+            { left: 250, bottom: 60,  width: 90,  height: 18,
+              minX: 250, maxX: 250, minY: 60, maxY: 200, speedX: 0, speedY: 1.6 },
+            /* Ferry across the wide middle pit - time your jump! */
+            { left: 480, bottom: 120, width: 100, height: 18,
+              minX: 480, maxX: 560, minY: 120, maxY: 120, speedX: 1.6, speedY: 0 }
+        ],
+        coins: [
+            { x: 245, y: 153 },
+            { x: 395, y: 165 },
+            { x: 500, y: 235 },
+            { x: 410, y: 305 },
+            { x: 585, y: 275 },
+            { x: 712, y: 178 },
+            { x: 812, y: 248 }
+        ],
+        powerUps: [
+            { x: 410, y: 336, type: "superjump" },
+            { x: 660, y: 150, type: "speedboost" }
+        ],
+        enemies: [
+            { type: "patrol", x: 180, y: 55,  dir: -1, speed: 2.4, minX: 115, maxX: 192 },
+            { type: "chaser", x: 470, y: 55,  dir: -1, speed: 1.8, chaseSpeed: 3.4,
+              minX: 345, maxX: 462 },
+            { type: "patrol", x: 530, y: 230, dir: -1, speed: 1.8, minX: 472, maxX: 512 },
+            { type: "patrol", x: 650, y: 55,  dir: 1,  speed: 2.6, minX: 642, maxX: 692 },
+            { type: "chaser", x: 872, y: 55,  dir: -1, speed: 1.8, chaseSpeed: 3.4,
+              minX: 772, maxX: 862 }
+        ]
+    }
 ];
 
-/* Fill in the shared runtime values every enemy needs */
-for (var i = 0; i < enemiesData.length; i++) {
-    var eInit = enemiesData[i];
-    eInit.alive = true;
-    eInit.chasing = false;
-    eInit.defeatedAt = 0;
-    eInit.startX = eInit.x;
-    eInit.startDir = eInit.dir;
-    eInit.faceLeft = eInit.dir < 0;
-    eInit.el.style.left = eInit.x + "px";
-    eInit.el.style.bottom = eInit.y + "px";
+/* ===== LEVEL ENTITY STATE (rebuilt for every level) ===== */
+
+var staticPlatforms = [];
+var movingPlatforms = [];
+var platforms = [];          /* static + moving, used by collisions */
+var coinsData = [];
+var powerUpsData = [];
+var enemiesData = [];
+var onMovingPlatform = null;
+
+/* Small helper: create a positioned div for one entity */
+function makeEntity(className, x, y, w, h) {
+    var el = document.createElement("div");
+    el.className = className;
+    el.style.left = x + "px";
+    el.style.bottom = y + "px";
+    if (w !== undefined) el.style.width = w + "px";
+    if (h !== undefined) el.style.height = h + "px";
+    entities.appendChild(el);
+    return el;
+}
+
+/* Build all DOM elements and data objects for one level */
+function buildLevel(def) {
+    staticPlatforms = [];
+    movingPlatforms = [];
+    coinsData = [];
+    powerUpsData = [];
+    enemiesData = [];
+
+    /* Static platforms and ground segments */
+    for (var i = 0; i < def.platforms.length; i++) {
+        var pd = def.platforms[i];
+        makeEntity("platform", pd.left, pd.bottom, pd.width, pd.height);
+        staticPlatforms.push({
+            left: pd.left, bottom: pd.bottom,
+            width: pd.width, height: pd.height
+        });
+    }
+
+    /* Moving platforms */
+    for (i = 0; i < def.movers.length; i++) {
+        var md = def.movers[i];
+        var mel = makeEntity("moving-platform", md.left, md.bottom, md.width, md.height);
+        movingPlatforms.push({
+            left: md.left, bottom: md.bottom,
+            width: md.width, height: md.height,
+            initLeft: md.left, initBottom: md.bottom,
+            minX: md.minX, maxX: md.maxX, minY: md.minY, maxY: md.maxY,
+            speedX: md.speedX, speedY: md.speedY,
+            dirX: 1, dirY: 1, dx: 0, dy: 0, moving: true,
+            el: mel
+        });
+    }
+
+    platforms = staticPlatforms.concat(movingPlatforms);
+
+    /* Coins */
+    for (i = 0; i < def.coins.length; i++) {
+        var cd = def.coins[i];
+        var cel = makeEntity("coin", cd.x, cd.y);
+        coinsData.push({ x: cd.x, y: cd.y, collected: false, el: cel });
+    }
+
+    /* Power-ups */
+    for (i = 0; i < def.powerUps.length; i++) {
+        var pud = def.powerUps[i];
+        var puClass = pud.type === "superjump" ? "super-jump" : "speed-boost";
+        var puel = makeEntity("powerup " + puClass, pud.x, pud.y);
+        powerUpsData.push({
+            x: pud.x, y: pud.y, type: pud.type,
+            collected: false, el: puel
+        });
+    }
+
+    /* Enemies (with their runtime values filled in) */
+    for (i = 0; i < def.enemies.length; i++) {
+        var ed = def.enemies[i];
+        var eel = makeEntity("enemy " + ed.type, ed.x, ed.y);
+        enemiesData.push({
+            type: ed.type,
+            x: ed.x, y: ed.y,
+            dir: ed.dir, speed: ed.speed,
+            minX: ed.minX, maxX: ed.maxX,
+            chaseSpeed: ed.chaseSpeed || 0,
+            alive: true, chasing: false, defeatedAt: 0,
+            startX: ed.x, startDir: ed.dir, faceLeft: ed.dir < 0,
+            el: eel
+        });
+    }
 }
 
 /* One enemy AI step: patrol boundaries, chase logic for chasers */
@@ -247,6 +463,8 @@ function defeatEnemy(e) {
 }
 
 /* ===== INPUT ===== */
+/* These listeners are registered exactly once for the whole game.
+   Changing levels never adds new ones. */
 
 document.addEventListener("keydown", function(e) {
     if (e.key === "ArrowLeft" || e.key === "ArrowRight" ||
@@ -276,10 +494,145 @@ function doJump() {
     }
 }
 
+/* ===== LEVEL LOADING / TRANSITIONS ===== */
+
+/* Short "LEVEL X" splash at the start of every level */
+function showBanner(text) {
+    bannerEl.textContent = text;
+    bannerEl.classList.remove("show");
+    void bannerEl.offsetWidth;   /* forces a reflow so the animation restarts */
+    bannerEl.classList.add("show");
+}
+
+/* Shows the overlay. btnAction is stored as onclick (a property),
+   so clicking the button can never stack duplicate listeners. */
+function showMessage(text, infoText, btnLabel, btnAction, btnClass) {
+    messageTextEl.textContent = text;
+    if (infoText) {
+        messageInfoEl.textContent = infoText;
+        messageInfoEl.style.display = "block";
+    } else {
+        messageInfoEl.style.display = "none";
+    }
+    messageBtnEl.textContent = btnLabel;
+    messageBtnEl.className = btnClass ? btnClass : "";
+    messageBtnEl.onclick = btnAction;
+    messageEl.style.display = "flex";
+}
+
+/* Load a level by index: clear everything, rebuild it, reset state */
+function loadLevel(index) {
+    currentLevelIndex = index;
+    var def = LEVELS[index];
+
+    /* Stop anything still running from the previous level */
+    if (levelStartTimer !== null) {
+        clearTimeout(levelStartTimer);
+        levelStartTimer = null;
+    }
+    if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+    }
+
+    /* Remove all old entities (platforms, coins, enemies, ...) */
+    entities.innerHTML = "";
+
+    /* Build the new level */
+    buildLevel(def);
+
+    /* Visual atmosphere for this level */
+    game.classList.remove("theme-1", "theme-2", "theme-3");
+    game.classList.add(def.theme);
+
+    /* Move the goal flag */
+    currentGoalX = def.goalX;
+    goalEl.style.left = def.goalX + "px";
+
+    /* Reset the player */
+    playerX = def.start.x;
+    playerY = def.start.y;
+    prevY = playerY;
+    velocityY = 0;
+    playerVX = 0;
+    isOnGround = true;
+    keys.left = false;
+    keys.right = false;
+    onMovingPlatform = null;
+    gameOver = false;
+    gameWon = false;
+    player.style.left = playerX + "px";
+    player.style.bottom = playerY + "px";
+    player.style.transform = "";
+    player.classList.remove("airborne", "power-superjump", "power-speedboost");
+
+    /* Reset power-up state and timers */
+    activePower = null;
+    powerEndTime = 0;
+    updatePowerHud();
+
+    /* Coins are per-level: reset the counter, show the new total */
+    coinCount = 0;
+    coinCountEl.textContent = "0";
+    coinTotalEl.textContent = def.coins.length;
+    levelNumEl.textContent = index + 1;
+    scoreEl.textContent = score;   /* score carries over between levels */
+
+    /* Hide overlays and show the level banner */
+    messageEl.style.display = "none";
+    showBanner("LEVEL " + (index + 1));
+
+    /* Give the banner a moment before the action starts */
+    levelStartTimer = setTimeout(function() {
+        levelStartTimer = null;
+        startLoop();
+    }, 1000);
+}
+
+/* Reached the flag: either advance or win the whole game */
+function completeLevel() {
+    gameWon = true;
+
+    if (currentLevelIndex === LEVELS.length - 1) {
+        showMessage(
+            "YOU WIN!",
+            "Final score: " + score + "  |  Coins collected: " + totalCoinsRun,
+            "Restart Game",
+            restartGame
+        );
+    } else {
+        showMessage(
+            "LEVEL " + (currentLevelIndex + 1) + " COMPLETE!",
+            "Score so far: " + score,
+            "Next Level",
+            function() { loadLevel(currentLevelIndex + 1); },
+            "green"
+        );
+    }
+}
+
+/* Touched an enemy sideways or fell into a pit */
+function loseGame() {
+    gameOver = true;
+    showMessage("GAME OVER", null, "Restart", restartGame);
+}
+
+/* Complete reset: back to level 1 with a fresh score */
+function restartGame() {
+    score = 0;
+    totalCoinsRun = 0;
+    loadLevel(0);
+}
+
 /* ===== GAME LOOP ===== */
 
+function startLoop() {
+    if (rafId !== null) cancelAnimationFrame(rafId);   /* never two loops */
+    rafId = requestAnimationFrame(gameLoop);
+}
+
 function gameLoop() {
-    if (gameOver || gameWon) return;
+    if (gameOver || gameWon) { rafId = null; return; }
 
     /* Update moving platforms */
     for (var i = 0; i < movingPlatforms.length; i++) {
@@ -340,7 +693,7 @@ function gameLoop() {
 
     if (velocityY <= 0) {
         var bestTop = -1;
-        for (var i = 0; i < platforms.length; i++) {
+        for (i = 0; i < platforms.length; i++) {
             var p = platforms[i];
             var platTop = p.bottom + p.height;
             if (playerX + PLAYER_W > p.left && playerX < p.left + p.width) {
@@ -361,19 +714,18 @@ function gameLoop() {
         }
     }
 
-    /* Clamp below ground */
-    if (playerY < 0) {
-        playerY = 0;
-        velocityY = 0;
-        isOnGround = true;
-        onMovingPlatform = null;
+    /* Fell into a pit (levels 2 and 3 have gaps in the ground):
+       once the player is fully below the screen the run is over */
+    if (playerY < PIT_FALL_Y) {
+        loseGame();
+        return;
     }
 
     /* Enemy AI */
     updateEnemies();
 
     /* Coin collection */
-    for (var i = 0; i < coinsData.length; i++) {
+    for (i = 0; i < coinsData.length; i++) {
         var c = coinsData[i];
         if (c.collected) continue;
         if (playerX + PLAYER_W > c.x && playerX < c.x + COIN_SIZE &&
@@ -382,13 +734,14 @@ function gameLoop() {
             c.el.style.display = "none";
             score += 50;
             coinCount++;
+            totalCoinsRun++;
             scoreEl.textContent = score;
             coinCountEl.textContent = coinCount;
         }
     }
 
     /* Power-up collection */
-    for (var i = 0; i < powerUpsData.length; i++) {
+    for (i = 0; i < powerUpsData.length; i++) {
         var pu = powerUpsData[i];
         if (pu.collected) continue;
         if (playerX + PLAYER_W > pu.x && playerX < pu.x + POWERUP_SIZE &&
@@ -404,7 +757,7 @@ function gameLoop() {
     updatePowerHud();
 
     /* Enemy collisions (stomp from above vs. side hit) */
-    for (var i = 0; i < enemiesData.length; i++) {
+    for (i = 0; i < enemiesData.length; i++) {
         var e = enemiesData[i];
         if (!e.alive) continue;   /* never collide with a defeated enemy */
 
@@ -422,16 +775,14 @@ function gameLoop() {
         if (velocityY < 0 && prevY >= enemyTop - 4) {
             defeatEnemy(e);
         } else {
-            gameOver = true;
-            showMessage("GAME OVER");
+            loseGame();
             return;
         }
     }
 
-    /* Win condition */
-    if (playerX + PLAYER_W >= GOAL_X) {
-        gameWon = true;
-        showMessage("YOU WIN!");
+    /* Goal reached: finish this level (or win the whole game) */
+    if (playerX + PLAYER_W >= currentGoalX) {
+        completeLevel();
         return;
     }
 
@@ -453,8 +804,8 @@ function gameLoop() {
     }
 
     /* Draw enemies: position, facing direction and chase glow */
-    for (var i = 0; i < enemiesData.length; i++) {
-        var e = enemiesData[i];
+    for (i = 0; i < enemiesData.length; i++) {
+        e = enemiesData[i];
         e.el.classList.toggle("face-left", e.alive && e.faceLeft);
         if (e.type === "chaser") {
             e.el.classList.toggle("chasing", e.alive && e.chasing);
@@ -462,98 +813,15 @@ function gameLoop() {
         if (e.alive) e.el.style.left = e.x + "px";
     }
 
-    for (var i = 0; i < movingPlatforms.length; i++) {
-        var mp = movingPlatforms[i];
+    for (i = 0; i < movingPlatforms.length; i++) {
+        mp = movingPlatforms[i];
         mp.el.style.left = mp.left + "px";
         mp.el.style.bottom = mp.bottom + "px";
     }
 
-    requestAnimationFrame(gameLoop);
-}
-
-/* ===== MESSAGE ===== */
-
-function showMessage(text) {
-    messageTextEl.textContent = text;
-    messageEl.style.display = "flex";
-    messageBtnEl.textContent = "Restart";
-}
-
-/* ===== RESTART ===== */
-
-function restartGame() {
-    playerX = 80;
-    playerY = 55;
-    prevY = 55;
-    velocityY = 0;
-    playerVX = 0;
-    isOnGround = true;
-    gameOver = false;
-    gameWon = false;
-    score = 0;
-    coinCount = 0;
-    keys.left = false;
-    keys.right = false;
-    onMovingPlatform = null;
-
-    /* Reset power-ups and active effects */
-    activePower = null;
-    powerEndTime = 0;
-    player.classList.remove("power-superjump", "power-speedboost");
-
-    for (var i = 0; i < powerUpsData.length; i++) {
-        powerUpsData[i].collected = false;
-        powerUpsData[i].el.style.display = "block";
-    }
-    updatePowerHud();
-
-    for (var i = 0; i < coinsData.length; i++) {
-        coinsData[i].collected = false;
-        coinsData[i].el.style.display = "block";
-    }
-
-    /* Reset every enemy: position, direction and state */
-    for (var i = 0; i < enemiesData.length; i++) {
-        var e = enemiesData[i];
-        e.alive = true;
-        e.chasing = false;
-        e.defeatedAt = 0;
-        e.x = e.startX;
-        e.dir = e.startDir;
-        e.faceLeft = e.startDir < 0;
-        e.el.style.display = "block";
-        e.el.style.left = e.x + "px";
-        e.el.style.bottom = e.y + "px";
-        e.el.classList.remove("defeated", "chasing", "face-left");
-    }
-
-    for (var i = 0; i < movingPlatforms.length; i++) {
-        var mp = movingPlatforms[i];
-        mp.left = mp.initLeft;
-        mp.bottom = mp.initBottom;
-        mp.dirX = 1;
-        mp.dirY = 1;
-        mp.dx = 0;
-        mp.dy = 0;
-        mp.el.style.left = mp.left + "px";
-        mp.el.style.bottom = mp.bottom + "px";
-    }
-
-    scoreEl.textContent = "0";
-    coinCountEl.textContent = "0";
-    messageEl.style.display = "none";
-
-    player.style.left = playerX + "px";
-    player.style.bottom = playerY + "px";
-    player.style.transform = "";
-    player.classList.remove("airborne");
-
-    requestAnimationFrame(gameLoop);
+    rafId = requestAnimationFrame(gameLoop);
 }
 
 /* ===== INIT ===== */
 
-player.style.left = playerX + "px";
-player.style.bottom = playerY + "px";
-
-requestAnimationFrame(gameLoop);
+loadLevel(0);

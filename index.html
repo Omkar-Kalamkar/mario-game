@@ -10,14 +10,17 @@
     <div class="game-container">
         <div class="hud">
             <span>SCORE: <span id="score">0</span></span>
+            <span>COINS: <span id="coinCount">0</span> / <span id="coinTotal">0</span></span>
+            <span>LEVEL: <span id="levelNum">1</span></span>
             <span id="powerHud">
                 <span id="powerName">NO POWER-UP</span>
                 <span id="powerTimerBarWrap"><span id="powerTimerBar"></span></span>
             </span>
-            <span>COINS: <span id="coinCount">0</span> / 3</span>
         </div>
 
         <div id="game">
+            <!-- Scenery (hills and clouds) is shared by all levels.
+                 Each level recolors it through a theme class on #game. -->
             <div class="hill" style="left:80px;width:180px;height:70px"></div>
             <div class="hill" style="left:400px;width:140px;height:55px"></div>
             <div class="hill" style="left:650px;width:200px;height:80px"></div>
@@ -27,38 +30,26 @@
             <div class="cloud" style="left:550px;top:50px;width:70px;height:25px"></div>
             <div class="cloud" style="left:760px;top:15px;width:100px;height:30px"></div>
 
+            <!-- Platforms, coins, power-ups and enemies are built here
+                 by script.js from the LEVELS data for each level -->
+            <div id="entities"></div>
+
             <div id="player"></div>
-
-            <div class="platform ground"></div>
-            <div class="platform platform1"></div>
-            <div class="platform platform2"></div>
-            <div class="platform platform3"></div>
-
-            <div class="moving-platform" id="movingPlat1"></div>
-            <div class="moving-platform" id="movingPlat2"></div>
-
-            <div class="coin" id="coin1"></div>
-            <div class="coin" id="coin2"></div>
-            <div class="coin" id="coin3"></div>
-
-            <div class="powerup super-jump" id="powerJump" style="left:185px; bottom:135px;"></div>
-            <div class="powerup speed-boost" id="powerSpeed" style="left:780px; bottom:170px;"></div>
-
-            <div class="enemy patrol" id="enemy1"></div>
-            <div class="enemy chaser" id="enemy2"></div>
-            <div class="enemy patrol" id="enemy3"></div>
-            <div class="enemy patrol" id="enemy4"></div>
 
             <div id="goal"></div>
 
+            <!-- Short "LEVEL X" banner shown when a level starts -->
+            <div id="levelBanner"></div>
+
             <div id="message">
                 <h1 id="messageText">GAME OVER</h1>
-                <button id="messageBtn" onclick="restartGame()">Restart</button>
+                <p id="messageInfo"></p>
+                <button id="messageBtn">Restart</button>
             </div>
         </div>
 
         <div class="controls">
-            <p>&larr; &rarr; Move &nbsp;|&nbsp; &uarr; / Space = Jump</p>
+            <p>&larr; &rarr; Move &nbsp;|&nbsp; &uarr; / Space = Jump &nbsp;|&nbsp; Reach the flag to finish the level</p>
         </div>
     </div>
 

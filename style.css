@@ -104,33 +104,9 @@ body {
     border-top: 8px solid #228b22;
 }
 
-.ground {
-    width: 100%;
-    height: 55px;
-    bottom: 0;
-    left: 0;
-}
-
-.platform1 {
-    width: 150px;
-    height: 25px;
-    left: 200px;
-    bottom: 130px;
-}
-
-.platform2 {
-    width: 150px;
-    height: 25px;
-    left: 450px;
-    bottom: 210px;
-}
-
-.platform3 {
-    width: 150px;
-    height: 25px;
-    left: 700px;
-    bottom: 130px;
-}
+/* Platform rectangles (including ground segments) are positioned
+   inline by script.js when a level is built, so no fixed
+   .platform1/.platform2/... CSS classes are needed anymore. */
 
 /* Coins */
 .coin {
@@ -149,20 +125,7 @@ body {
     50% { transform: translateY(-5px); }
 }
 
-.coin1 {
-    left: 250px;
-    bottom: 165px;
-}
-
-.coin2 {
-    left: 500px;
-    bottom: 245px;
-}
-
-.coin3 {
-    left: 750px;
-    bottom: 165px;
-}
+/* Coin positions are set inline by script.js per level. */
 
 /* Power-Ups */
 .powerup {
@@ -396,6 +359,12 @@ body {
     flex-direction: column;
     justify-content: center;
     align-items: center;
+    animation: overlayFade 0.35s ease-out;
+}
+
+@keyframes overlayFade {
+    from { opacity: 0; }
+    to   { opacity: 1; }
 }
 
 #message h1 {
@@ -406,7 +375,9 @@ body {
     letter-spacing: 3px;
 }
 
-#message p {
+/* Extra line under the title (final score, coins, ...) */
+#messageInfo {
+    display: none;
     color: #ccc;
     font-size: 22px;
     margin-bottom: 20px;
@@ -427,6 +398,15 @@ body {
 
 #message button:hover {
     background: #ff4444;
+}
+
+/* Green variant used for the "Next Level" button */
+#message button.green {
+    background: #00a344;
+}
+
+#message button.green:hover {
+    background: #22c55e;
 }
 
 /* Moving Platforms */
@@ -521,4 +501,94 @@ body {
     width: 0%;
     background: linear-gradient(to right, #2ecc71, #ff9800);
     border-radius: 5px;
+}
+
+/* ===== LEVEL BANNER (short "LEVEL X" splash when a level starts) ===== */
+#levelBanner {
+    position: absolute;
+    top: 170px;
+    left: 0;
+    width: 100%;
+    text-align: center;
+    z-index: 60;
+    font-size: 54px;
+    font-weight: bold;
+    letter-spacing: 6px;
+    color: white;
+    text-shadow: 3px 3px 0 rgba(0, 0, 0, 0.6);
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* Added/removed by script.js to replay the animation on every level */
+#levelBanner.show {
+    animation: bannerSweep 1.1s ease forwards;
+}
+
+@keyframes bannerSweep {
+    0%   { opacity: 0; transform: translateY(18px) scale(0.9); }
+    20%  { opacity: 1; transform: translateY(0) scale(1); }
+    75%  { opacity: 1; }
+    100% { opacity: 0; transform: translateY(-14px); }
+}
+
+/* ===== LEVEL THEMES =====
+   script.js puts theme-1 / theme-2 / theme-3 on #game so every
+   level gets its own atmosphere using CSS only. */
+
+/* Level 2: warm sunset sky */
+#game.theme-2 {
+    background: linear-gradient(to bottom, #ff9a5c 0%, #ffd98e 55%, #b8ddff 100%);
+}
+
+#game.theme-2 .hill {
+    background: #8a6a30;
+    opacity: 0.75;
+}
+
+#game.theme-2 .cloud {
+    background: #ffe9d0;
+}
+
+/* Level 3: dark night sky with stars */
+#game.theme-3 {
+    background: linear-gradient(to bottom, #12123a 0%, #2a2a6e 70%, #3d3d8f 100%);
+}
+
+#game.theme-3 .hill {
+    background: #1f4d3a;
+    opacity: 0.85;
+}
+
+#game.theme-3 .cloud {
+    background: #8fa3c8;
+    opacity: 0.45;
+}
+
+/* Star field, only visible in the night theme */
+#game::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0;
+    background-image:
+        radial-gradient(2px 2px at 12% 18%, #fff 50%, transparent 51%),
+        radial-gradient(2px 2px at 32% 42%, #fff 50%, transparent 51%),
+        radial-gradient(3px 3px at 52% 15%, #fff 50%, transparent 51%),
+        radial-gradient(2px 2px at 68% 35%, #fff 50%, transparent 51%),
+        radial-gradient(2px 2px at 84% 22%, #fff 50%, transparent 51%),
+        radial-gradient(2px 2px at 22% 62%, #fff 50%, transparent 51%),
+        radial-gradient(3px 3px at 44% 72%, #fff 50%, transparent 51%),
+        radial-gradient(2px 2px at 76% 60%, #fff 50%, transparent 51%),
+        radial-gradient(2px 2px at 91% 48%, #fff 50%, transparent 51%);
+    transition: opacity 0.6s ease;
+}
+
+#game.theme-3::before {
+    opacity: 0.9;
 }
