@@ -592,3 +592,153 @@ body {
 #game.theme-3::before {
     opacity: 0.9;
 }
+
+/* ===== DAY 6: LIVES, CHECKPOINTS, RESPAWN EFFECTS ===== */
+
+/* Lives readout in the HUD: number + CSS hearts */
+.lives-hud {
+    display: inline-flex;
+    align-items: center;
+    color: #ff6b6b;
+    text-shadow: 0 1px 0 #000;
+}
+
+#livesHearts {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: 9px;
+}
+
+/* Pure-CSS heart (two rounded halves rotated together) */
+.heart {
+    position: relative;
+    width: 14px;
+    height: 13px;
+}
+
+.heart::before,
+.heart::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    width: 7px;
+    height: 11px;
+    background: #ff3b47;
+    border-radius: 7px 7px 0 0;
+}
+
+.heart::before {
+    left: 7px;
+    transform: rotate(45deg);
+    transform-origin: 0 100%;
+}
+
+.heart::after {
+    left: 0;
+    transform: rotate(-45deg);
+    transform-origin: 100% 100%;
+}
+
+/* Lost lives show as dark hollow slots */
+.heart.empty::before,
+.heart.empty::after {
+    background: #4a4a55;
+}
+
+/* ===== Checkpoint flags (CSS shapes only) ===== */
+
+.checkpoint {
+    position: absolute;
+    width: 8px;
+    height: 85px;
+    background: linear-gradient(to right, #d8d8d8, #8f8f8f);
+    border-radius: 3px 3px 0 0;
+    z-index: 4;
+    transform-origin: 50% 100%;
+}
+
+/* Pennant: a border triangle hanging off the pole */
+.checkpoint::before {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 8px;
+    width: 0;
+    height: 0;
+    border-top: 10px solid transparent;
+    border-bottom: 10px solid transparent;
+    border-left: 22px solid #7a7a85;
+    transform-origin: left center;
+    transition: border-left-color 0.25s ease;
+}
+
+/* Small base mound under the pole */
+.checkpoint::after {
+    content: "";
+    position: absolute;
+    bottom: -5px;
+    left: -8px;
+    width: 24px;
+    height: 10px;
+    background: radial-gradient(circle at 50% 35%, #8a8a8a, #4a4a4a);
+    border-radius: 50%;
+}
+
+/* Raised flag: golden pennant and glowing pole */
+.checkpoint.active {
+    background: linear-gradient(to right, #ffe27a, #d9a520);
+    box-shadow: 0 0 10px rgba(255, 210, 63, 0.75);
+}
+
+.checkpoint.active::before {
+    border-left-color: #ffd23f;
+    animation: pennantWave 0.9s ease-in-out infinite;
+}
+
+/* The checkpoint that is currently the respawn point shines brightest */
+.checkpoint.current {
+    box-shadow: 0 0 16px 4px rgba(255, 210, 63, 0.95);
+}
+
+/* One-shot pop when the player raises the flag */
+.checkpoint.just-hit {
+    animation: cpPop 0.5s ease-out;
+}
+
+@keyframes pennantWave {
+    0%, 100% { transform: scaleX(1); }
+    50%      { transform: scaleX(0.72); }
+}
+
+@keyframes cpPop {
+    0%   { transform: scaleY(1); }
+    35%  { transform: scaleY(1.15) scaleX(0.92); }
+    70%  { transform: scaleY(0.94); }
+    100% { transform: scaleY(1); }
+}
+
+/* ===== Respawn effects ===== */
+
+/* Blinking while protected after a respawn */
+#player.invulnerable {
+    animation: respawnBlink 0.3s linear infinite;
+}
+
+@keyframes respawnBlink {
+    0%, 49%   { opacity: 1; }
+    50%, 100% { opacity: 0.25; }
+}
+
+/* Short death hop before the respawn (animates the "translate"
+   property so it never fights the tilt/squash "transform" that
+   script.js writes on #player every frame) */
+#player.dying {
+    animation: deathHop 0.85s ease-in forwards;
+}
+
+@keyframes deathHop {
+    0%   { translate: 0 0;     opacity: 1; filter: brightness(1.8) saturate(0.4); }
+    35%  { translate: 0 -46px; opacity: 1; }
+    100% { translate: 0 110px; opacity: 0; filter: brightness(1); }
+}

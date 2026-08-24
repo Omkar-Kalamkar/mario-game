@@ -1,11 +1,15 @@
 /* ============================================================
    MARIO-STYLE PLATFORMER
-   Day 5: multiple levels and level progression.
+   Day 6: lives, checkpoints and respawn invulnerability.
 
    All levels are described by data in the LEVELS array below.
    loadLevel() destroys the old entities and builds the new ones,
    so the gameplay code (movement, collision, enemies, power-ups)
    works exactly the same way for every level.
+
+   Dying (enemy side hit or pit) costs exactly one life and
+   respawns the player at the active checkpoint with a short
+   invulnerability. At zero lives the run ends with GAME OVER.
    ============================================================ */
 
 /* ===== ELEMENT REFERENCES ===== */
@@ -17,6 +21,8 @@ var scoreEl = document.getElementById("score");
 var coinCountEl = document.getElementById("coinCount");
 var coinTotalEl = document.getElementById("coinTotal");
 var levelNumEl = document.getElementById("levelNum");
+var livesNumEl = document.getElementById("livesNum");
+var livesHeartsEl = document.getElementById("livesHearts");
 var messageEl = document.getElementById("message");
 var messageTextEl = document.getElementById("messageText");
 var messageInfoEl = document.getElementById("messageInfo");
@@ -45,6 +51,15 @@ var PIT_FALL_Y = -70;
 var ACCELERATION = 0.55;
 var DECELERATION = 0.45;
 var MAX_SPEED = 5;
+
+/* ===== LIVES / CHECKPOINTS ===== */
+
+var START_LIVES = 3;             /* lives at the start of a new game */
+var RESPAWN_INVULN_MS = 1800;    /* protection time after a respawn */
+var DEATH_PAUSE_MS = 850;        /* short pause before respawning */
+var CHECKPOINT_W = 16;           /* half-width of the flag touch zone */
+var CHECKPOINT_H = 85;           /* height of the flag touch zone */
+var CHECKPOINT_BONUS = 25;       /* points for raising a flag */
 
 /* ===== POWER-UPS ===== */
 
@@ -106,6 +121,18 @@ function updatePowerHud() {
     powerTimerBar.style.width = Math.ceil((remaining / total) * 100) + "%";
 }
 
+/* ===== LIVES DISPLAY ===== */
+
+/* Redraws the lives number and the CSS heart icons in the HUD */
+function renderLives() {
+    livesNumEl.textContent = lives;
+    var html = "";
+    for (var i = 0; i < START_LIVES; i++) {
+        html += '<span class="heart' + (i < lives ? "" : " empty") + '"></span>';
+    }
+    livesHeartsEl.innerHTML = html;
+}
+
 /* ===== PLAYER / GAME STATE ===== */
 
 var playerX = 80;
@@ -133,6 +160,14 @@ var currentGoalX = 850;      /* flag position of the current level */
 var rafId = null;
 var levelStartTimer = null;
 
+/* Lives / checkpoint state */
+var lives = START_LIVES;      /* remaining lives in this run */
+var isDying = false;          /* true during the death pause */
+var invulnUntil = 0;          /* timestamp until respawn protection ends */
+var currentCheckpoint = null; /* active respawn point {x, y} */
+var checkpointsData = [];     /* per-level checkpoint flags */
+var respawnTimer = null;      /* pending respawn timeout */
+
 /* ===== ENEMY CONSTANTS ===== */
 
 var STOMP_SCORE = 150;          /* points for jumping on an enemy */
@@ -159,9 +194,11 @@ var CHASE_RANGE_Y = 70;
                 minX, maxX, minY, maxY, speedX, speedY}
      coins      coin positions {x, y} (y = bottom of the coin)
      powerUps   {x, y, type} with type "superjump" or "speedboost"
-     enemies    {type, x, y, dir, speed, minX, maxX} and optional
-                chaseSpeed for chasers; they patrol between
-                minX and maxX and never leave their platform
+      enemies    {type, x, y, dir, speed, minX, maxX} and optional
+                 chaseSpeed for chasers; they patrol between
+                 minX and maxX and never leave their platform
+      checkpoints {x, y} respawn flags; touching one lights it up
+                 and moves the respawn point to that spot
 
    Jump reach: about 140px high and 180px far, so every gap and
    step below was checked to stay inside those limits.
@@ -204,6 +241,9 @@ var LEVELS = [
         enemies: [
             { type: "patrol", x: 310, y: 55, dir: -1, speed: 1.5, minX: 250, maxX: 380 },
             { type: "patrol", x: 600, y: 55, dir: -1, speed: 1.8, minX: 550, maxX: 640 }
+        ],
+        checkpoints: [
+            { x: 430, y: 55 }   /* after the first enemy zone */
         ]
     },
 
@@ -250,6 +290,10 @@ var LEVELS = [
             { type: "chaser", x: 860, y: 55,  dir: -1, speed: 1.8, chaseSpeed: 3.2,
               minX: 670, maxX: 860 },
             { type: "patrol", x: 690, y: 222, dir: -1, speed: 1.6, minX: 622, maxX: 703 }
+        ],
+        checkpoints: [
+            { x: 362, y: 55 },   /* after the first pit */
+            { x: 662, y: 55 }    /* after the second pit, before the chaser */
         ]
     },
 
@@ -303,6 +347,10 @@ var LEVELS = [
             { type: "patrol", x: 650, y: 55,  dir: 1,  speed: 2.6, minX: 642, maxX: 692 },
             { type: "chaser", x: 872, y: 55,  dir: -1, speed: 1.8, chaseSpeed: 3.4,
               minX: 772, maxX: 862 }
+        ],
+        checkpoints: [
+            { x: 350, y: 55 },   /* after the long first pit */
+            { x: 695, y: 173 }   /* on the ledge after the ferry crossing */
         ]
     }
 ];
@@ -336,6 +384,7 @@ function buildLevel(def) {
     coinsData = [];
     powerUpsData = [];
     enemiesData = [];
+    checkpointsData = [];
 
     /* Static platforms and ground segments */
     for (var i = 0; i < def.platforms.length; i++) {
@@ -397,6 +446,29 @@ function buildLevel(def) {
             el: eel
         });
     }
+
+    /* Checkpoints (flag poles the player can raise) */
+    for (i = 0; i < def.checkpoints.length; i++) {
+        var ckd = def.checkpoints[i];
+        var ckel = makeEntity("checkpoint", ckd.x, ckd.y);
+        checkpointsData.push({ x: ckd.x, y: ckd.y, active: false, el: ckel });
+    }
+}
+
+/* Raise a checkpoint flag: it becomes the new respawn point */
+function activateCheckpoint(ck) {
+    ck.active = true;
+    ck.el.classList.add("active", "just-hit");
+    currentCheckpoint = ck;
+
+    /* Only the newest flag is the current respawn point */
+    for (var j = 0; j < checkpointsData.length; j++) {
+        checkpointsData[j].el.classList.toggle(
+            "current", checkpointsData[j] === ck);
+    }
+
+    score += CHECKPOINT_BONUS;
+    scoreEl.textContent = score;
 }
 
 /* One enemy AI step: patrol boundaries, chase logic for chasers */
@@ -487,7 +559,7 @@ document.addEventListener("keyup", function(e) {
 /* ===== JUMP ===== */
 
 function doJump() {
-    if (isOnGround && !gameOver && !gameWon) {
+    if (isOnGround && !gameOver && !gameWon && !isDying) {
         velocityY = currentJumpPower();
         isOnGround = false;
         onMovingPlatform = null;
@@ -534,6 +606,10 @@ function loadLevel(index) {
         cancelAnimationFrame(rafId);
         rafId = null;
     }
+    if (respawnTimer !== null) {
+        clearTimeout(respawnTimer);
+        respawnTimer = null;
+    }
 
     /* Remove all old entities (platforms, coins, enemies, ...) */
     entities.innerHTML = "";
@@ -561,10 +637,17 @@ function loadLevel(index) {
     onMovingPlatform = null;
     gameOver = false;
     gameWon = false;
+    isDying = false;
+    invulnUntil = 0;
+
+    /* The level's start position is the first respawn point */
+    currentCheckpoint = { x: def.start.x, y: def.start.y };
+
     player.style.left = playerX + "px";
     player.style.bottom = playerY + "px";
     player.style.transform = "";
-    player.classList.remove("airborne", "power-superjump", "power-speedboost");
+    player.classList.remove("airborne", "power-superjump",
+                            "power-speedboost", "invulnerable", "dying");
 
     /* Reset power-up state and timers */
     activePower = null;
@@ -611,16 +694,106 @@ function completeLevel() {
     }
 }
 
-/* Touched an enemy sideways or fell into a pit */
-function loseGame() {
-    gameOver = true;
-    showMessage("GAME OVER", null, "Restart", restartGame);
+/* Touched an enemy sideways or fell into a pit: lose exactly one
+   life. With lives left, pause briefly and respawn at the active
+   checkpoint; at zero lives the run ends with GAME OVER. */
+function killPlayer() {
+    if (isDying || gameOver || gameWon) return;   /* one life per death */
+
+    isDying = true;
+    lives--;
+    renderLives();
+
+    /* Temporary power-ups wear off and movement stops */
+    expirePowerUp();
+    keys.left = false;
+    keys.right = false;
+    velocityY = 0;
+    playerVX = 0;
+    onMovingPlatform = null;
+
+    /* Freeze the loop and play the little death hop */
+    if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+    }
+    player.classList.remove("airborne", "invulnerable");
+    player.classList.add("dying");
+
+    if (lives <= 0) {
+        gameOver = true;
+        isDying = false;
+        showMessage(
+            "GAME OVER",
+            "Final score: " + score + "  |  Coins collected: " + totalCoinsRun,
+            "Restart Game",
+            restartGame
+        );
+        return;
+    }
+
+    /* Brief pause, then back to the checkpoint */
+    respawnTimer = setTimeout(function() {
+        respawnTimer = null;
+        respawnPlayer();
+    }, DEATH_PAUSE_MS);
 }
 
-/* Complete reset: back to level 1 with a fresh score */
+/* Bring the player back at the active checkpoint (or the level's
+   start if none was reached) and grant a short invulnerability.
+   Level, score and collected coins are preserved. */
+function respawnPlayer() {
+    isDying = false;
+
+    var cp = currentCheckpoint || LEVELS[currentLevelIndex].start;
+    playerX = cp.x;
+    playerY = cp.y + 2;      /* tiny drop so the player lands cleanly */
+    prevY = playerY;
+    velocityY = 0;
+    playerVX = 0;
+    isOnGround = false;
+    onMovingPlatform = null;
+    keys.left = false;
+    keys.right = false;
+
+    /* Send surviving enemies back home so nothing can occupy the
+       spawn point; defeated enemies stay defeated */
+    for (var i = 0; i < enemiesData.length; i++) {
+        var en = enemiesData[i];
+        if (!en.alive) continue;
+        en.x = en.startX;
+        en.dir = en.startDir;
+        en.faceLeft = en.startDir < 0;
+        en.chasing = false;
+        en.el.style.left = en.x + "px";
+        en.el.classList.remove("chasing");
+    }
+
+    /* Protected for a moment: blinking player, deadly contact off */
+    invulnUntil = performance.now() + RESPAWN_INVULN_MS;
+    player.classList.remove("dying");
+    player.classList.add("invulnerable");
+
+    player.style.left = playerX + "px";
+    player.style.bottom = playerY + "px";
+    player.style.transform = "";
+
+    showBanner("LIVES LEFT: " + lives);
+    startLoop();
+}
+
+/* Complete reset: fresh score, full lives, all checkpoints inactive */
 function restartGame() {
     score = 0;
     totalCoinsRun = 0;
+    lives = START_LIVES;
+    isDying = false;
+    invulnUntil = 0;
+    if (respawnTimer !== null) {
+        clearTimeout(respawnTimer);
+        respawnTimer = null;
+    }
+    renderLives();
     loadLevel(0);
 }
 
@@ -715,9 +888,9 @@ function gameLoop() {
     }
 
     /* Fell into a pit (levels 2 and 3 have gaps in the ground):
-       once the player is fully below the screen the run is over */
+       costs one life, respawn follows the normal lives system */
     if (playerY < PIT_FALL_Y) {
-        loseGame();
+        killPlayer();
         return;
     }
 
@@ -750,11 +923,28 @@ function gameLoop() {
         }
     }
 
+    /* Checkpoint flags: walking into one raises it and moves the
+       respawn point there */
+    for (i = 0; i < checkpointsData.length; i++) {
+        var ck = checkpointsData[i];
+        if (ck.active) continue;
+        if (playerX + PLAYER_W > ck.x - CHECKPOINT_W &&
+            playerX < ck.x + CHECKPOINT_W &&
+            playerY + PLAYER_H > ck.y &&
+            playerY < ck.y + CHECKPOINT_H) {
+            activateCheckpoint(ck);
+        }
+    }
+
     /* Power-up timer expiry (checked every frame, no setTimeout) */
     if (activePower && performance.now() >= powerEndTime) {
         expirePowerUp();
     }
     updatePowerHud();
+
+    /* Post-respawn invulnerability: blink while it lasts */
+    var invulnerable = performance.now() < invulnUntil;
+    player.classList.toggle("invulnerable", invulnerable);
 
     /* Enemy collisions (stomp from above vs. side hit) */
     for (i = 0; i < enemiesData.length; i++) {
@@ -774,10 +964,11 @@ function gameLoop() {
            Using prevY makes this work even when falling very fast. */
         if (velocityY < 0 && prevY >= enemyTop - 4) {
             defeatEnemy(e);
-        } else {
-            loseGame();
+        } else if (!invulnerable) {
+            killPlayer();
             return;
         }
+        /* While invulnerable the player passes through enemies */
     }
 
     /* Goal reached: finish this level (or win the whole game) */
@@ -824,4 +1015,5 @@ function gameLoop() {
 
 /* ===== INIT ===== */
 
+renderLives();
 loadLevel(0);
