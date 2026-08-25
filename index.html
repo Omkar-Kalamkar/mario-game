@@ -39,6 +39,13 @@
 
             <div id="goal"></div>
 
+            <!-- Day 7: boss health bar, shown only during the
+                 Level 3 boss fight (script.js toggles .hidden) -->
+            <div id="bossHud" class="hidden">
+                <span id="bossName">ARENA BRUTE</span>
+                <span id="bossSegs"></span>
+            </div>
+
             <!-- Short "LEVEL X" banner shown when a level starts -->
             <div id="levelBanner"></div>
 
@@ -50,7 +57,7 @@
         </div>
 
         <div class="controls">
-            <p>&larr; &rarr; Move &nbsp;|&nbsp; &uarr; / Space = Jump &nbsp;|&nbsp; Touch the flags to set your respawn point &nbsp;|&nbsp; Reach the flag to finish the level</p>
+            <p>&larr; &rarr; Move &nbsp;|&nbsp; &uarr; / Space = Jump &nbsp;|&nbsp; Touch the flags to set your respawn point &nbsp;|&nbsp; Stomp the Level 3 boss to break the gate and reach the flag</p>
         </div>
     </div>
 

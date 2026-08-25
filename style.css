@@ -742,3 +742,258 @@ body {
     35%  { translate: 0 -46px; opacity: 1; }
     100% { translate: 0 110px; opacity: 0; filter: brightness(1); }
 }
+
+/* ============================================================
+   DAY 7: BOSS BATTLE
+   ============================================================ */
+
+/* ===== Boss health bar (top of the arena, hidden by default) ===== */
+
+#bossHud {
+    position: absolute;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 18px;
+    background: rgba(12, 2, 20, 0.75);
+    border: 2px solid #ff5555;
+    border-radius: 22px;
+    box-shadow: 0 0 18px rgba(255, 60, 60, 0.45);
+    transition: opacity 0.4s ease, box-shadow 0.4s ease, border-color 0.4s ease;
+}
+
+/* script.js removes this class when the boss encounter begins */
+#bossHud.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+#bossName {
+    font-size: 15px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    color: #ffd7d7;
+    text-shadow: 1px 1px 0 #000;
+    white-space: nowrap;
+}
+
+/* One segment per boss hit point */
+#bossSegs {
+    display: inline-flex;
+    gap: 5px;
+}
+
+.boss-seg {
+    width: 34px;
+    height: 14px;
+    border-radius: 4px;
+    background: linear-gradient(to bottom, #ff6b6b, #c0392b);
+    box-shadow: 0 0 8px rgba(255, 80, 80, 0.8),
+                inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    transition: background 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.boss-seg.lost {
+    background: #3a3a4a;
+    box-shadow: none;
+    transform: scaleY(0.6);
+}
+
+/* Green "victory" look once the boss is defeated */
+#bossHud.boss-defeated {
+    border-color: #7cffb0;
+    box-shadow: 0 0 18px rgba(80, 255, 150, 0.4);
+}
+
+#bossHud.boss-defeated #bossName {
+    color: #7cffb0;
+}
+
+/* ===== The boss: a big horned crimson brute (CSS shapes only) ===== */
+
+.boss {
+    width: 72px;
+    height: 64px;
+    position: absolute;
+    z-index: 6;
+    border-radius: 16px 16px 10px 10px;
+    border-bottom: 6px solid #2e040b;
+    /* Eyes + pupils are painted as layered radial gradients so the
+       two ::pseudo elements stay free for horns and mouth */
+    background:
+        radial-gradient(circle at 25px 23px, #1a0004 0 3px, transparent 3.5px),
+        radial-gradient(circle at 53px 23px, #1a0004 0 3px, transparent 3.5px),
+        radial-gradient(circle at 22px 22px, #ffe95c 0 6px, transparent 6.5px),
+        radial-gradient(circle at 50px 22px, #ffe95c 0 6px, transparent 6.5px),
+        radial-gradient(circle at 32% 24%, #b23434, #7a1420 58%, #45060f);
+    box-shadow: 0 0 20px rgba(255, 40, 40, 0.35);
+    transform-origin: 50% 100%;
+    animation: bossBreath 1.6s ease-in-out infinite;
+}
+
+/* Spiky bone crown across the top of the head (clip-path shape) */
+.boss::before {
+    content: "";
+    position: absolute;
+    top: -14px;
+    left: 0;
+    width: 100%;
+    height: 16px;
+    background: linear-gradient(#f3e6c8, #d9c49a);
+    clip-path: polygon(
+        0% 100%, 8% 0%, 20% 70%, 32% 0%, 44% 70%,
+        56% 0%, 68% 70%, 80% 0%, 92% 100%
+    );
+}
+
+/* Jagged fanged grin near the bottom */
+.boss::after {
+    content: "";
+    position: absolute;
+    bottom: 10px;
+    left: 13px;
+    right: 13px;
+    height: 12px;
+    background: #2a0008;
+    clip-path: polygon(
+        0 0, 100% 0, 100% 35%, 92% 100%, 84% 35%, 74% 100%, 64% 35%,
+        54% 100%, 44% 35%, 34% 100%, 24% 35%, 14% 100%, 6% 35%, 0 35%
+    );
+}
+
+/* Facing left: pupils shift to the other side of the eyes */
+.boss.face-left {
+    background:
+        radial-gradient(circle at 19px 23px, #1a0004 0 3px, transparent 3.5px),
+        radial-gradient(circle at 47px 23px, #1a0004 0 3px, transparent 3.5px),
+        radial-gradient(circle at 22px 22px, #ffe95c 0 6px, transparent 6.5px),
+        radial-gradient(circle at 50px 22px, #ffe95c 0 6px, transparent 6.5px),
+        radial-gradient(circle at 32% 24%, #b23434, #7a1420 58%, #45060f);
+}
+
+/* Idle breathing uses the "translate" property so it never fights
+   with the lean/squash done through "transform" below */
+@keyframes bossBreath {
+    0%, 100% { translate: 0 0; }
+    50%      { translate: 0 -4px; }
+}
+
+/* Telegraph: shaking, glowing warning before a charge */
+.boss.telegraph {
+    filter: brightness(1.7) saturate(1.4);
+    animation: bossShake 0.12s linear infinite;
+}
+
+@keyframes bossShake {
+    0%   { translate: -3px 0; }
+    25%  { translate: 3px -2px; }
+    50%  { translate: -3px 2px; }
+    75%  { translate: 3px 0; }
+    100% { translate: -3px 0; }
+}
+
+/* Charging: leans into the dash with a fiery trail glow.
+   Direction of the lean follows the facing class. */
+.boss.charging {
+    transform: skewX(-8deg) scaleX(1.05);
+    filter: brightness(1.3) saturate(1.6);
+    box-shadow: 0 0 26px rgba(255, 90, 20, 0.9);
+}
+
+.boss.charging.face-left {
+    transform: skewX(8deg) scaleX(1.05);
+}
+
+/* White flash right after being stomped (class toggled by time) */
+.boss.hit-flash {
+    filter: brightness(3.2) saturate(0.5);
+}
+
+/* Defeat: squash flat and vanish, reusing the enemy squash effect.
+   Declared last so it wins over the state animations above. */
+.boss.defeated {
+    animation: enemySquash 0.55s ease-out forwards;
+}
+
+/* ===== Energy gate sealing the final goal ===== */
+
+.boss-gate {
+    position: absolute;
+    width: 14px;
+    height: 150px;
+    border-radius: 7px;
+    z-index: 7;
+    background: repeating-linear-gradient(
+        to bottom,
+        #7df9ff 0px,
+        #7df9ff 10px,
+        rgba(125, 249, 255, 0.15) 10px,
+        rgba(125, 249, 255, 0.15) 20px
+    );
+    box-shadow: 0 0 16px rgba(125, 249, 255, 0.8),
+                0 0 34px rgba(125, 249, 255, 0.4);
+    animation: gatePulse 1.1s ease-in-out infinite;
+}
+
+@keyframes gatePulse {
+    0%, 100% { opacity: 0.85; }
+    50%      { opacity: 1; }
+}
+
+/* Shatter animation when the boss dies (ends invisible, forwards) */
+.boss-gate.destroyed {
+    animation: gateBreak 0.7s ease-in forwards;
+}
+
+@keyframes gateBreak {
+    0%   { transform: scaleY(1);    opacity: 1;  filter: brightness(3); }
+    60%  { transform: scaleY(1.15); opacity: 0.9; }
+    100% { transform: scaleY(0.02); opacity: 0;  filter: brightness(1); }
+}
+
+/* ===== Boss hit effects (sparks + floating score) ===== */
+
+.spark-burst {
+    position: absolute;
+    width: 0;
+    height: 0;
+    z-index: 40;
+    pointer-events: none;
+}
+
+.spark {
+    position: absolute;
+    left: -4px;
+    top: -4px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #ffffff, #ffd23f 60%, transparent 75%);
+    animation: sparkFly 0.5s ease-out forwards;
+}
+
+@keyframes sparkFly {
+    from { transform: translate(0, 0) scale(1);  opacity: 1; }
+    to   { transform: translate(var(--sx), var(--sy)) scale(0.2); opacity: 0; }
+}
+
+.score-pop {
+    position: absolute;
+    z-index: 41;
+    font-size: 18px;
+    font-weight: bold;
+    color: #ffd23f;
+    text-shadow: 2px 2px 0 #000;
+    white-space: nowrap;
+    pointer-events: none;
+    animation: popRise 0.8s ease-out forwards;
+}
+
+@keyframes popRise {
+    from { transform: translateY(0);     opacity: 1; }
+    to   { transform: translateY(-46px); opacity: 0; }
+}

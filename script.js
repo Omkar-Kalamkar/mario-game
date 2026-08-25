@@ -10,6 +10,10 @@
    Dying (enemy side hit or pit) costs exactly one life and
    respawns the player at the active checkpoint with a short
    invulnerability. At zero lives the run ends with GAME OVER.
+
+   Day 7: Level 3 ends in a boss arena. The boss has 5 health,
+   telegraphed charge attacks, and seals the final goal behind a
+   gate until it is defeated by stomping.
    ============================================================ */
 
 /* ===== ELEMENT REFERENCES ===== */
@@ -31,6 +35,8 @@ var powerNameEl = document.getElementById("powerName");
 var powerTimerBar = document.getElementById("powerTimerBar");
 var goalEl = document.getElementById("goal");
 var bannerEl = document.getElementById("levelBanner");
+var bossHudEl = document.getElementById("bossHud");
+var bossSegsEl = document.getElementById("bossSegs");
 
 /* ===== CONSTANTS ===== */
 
@@ -181,6 +187,19 @@ var CHASE_ENTER_X = 160;
 var CHASE_EXIT_X = 210;
 var CHASE_RANGE_Y = 70;
 
+/* ===== BOSS CONSTANTS (Day 7, used only in Level 3) ===== */
+
+var BOSS_W = 72;                  /* hitbox size, matches the CSS */
+var BOSS_H = 64;
+var BOSS_HIT_SCORE = 300;         /* points per successful stomp */
+var BOSS_DEFEAT_BONUS = 1000;     /* extra points when it dies */
+var BOSS_STOMP_BOUNCE = 13;       /* upward bounce after a stomp */
+var BOSS_TELEGRAPH_MS = 450;      /* warning flash before a charge */
+var BOSS_CHARGE_MS = 700;         /* how long a charge lasts */
+var BOSS_ATTACK_COOLDOWN_MS = 2200; /* rest time between attacks */
+var BOSS_HIT_FLASH_MS = 220;      /* white flash after taking damage */
+var BOSS_STAGGER_MS = 380;        /* the boss stands still while hurt */
+
 /* ============================================================
    LEVEL DEFINITIONS
 
@@ -299,8 +318,24 @@ var LEVELS = [
 
     /* ---- LEVEL 3: HARD ------------------------------------
        Four small islands, long pits, stepping stones over the
-       gaps, a ferry platform across the wide middle pit and two
-       chasers (one guarding the goal). Few safe areas. */
+       gaps and a ferry platform across the wide middle pit.
+       The level ends in a BOSS ARENA: one wide floor with two
+       perch platforms for safe stomping. The boss patrols the
+       arena and an energy gate seals the goal flag until the
+       boss is defeated.
+
+       Boss config (only levels with a "boss" object get one):
+         x, y          spawn spot (right side, away from the door)
+         minX / maxX   patrol limits; maxX is the boss's right EDGE,
+                       so it can never touch the gate or the goal
+         speed         patrol speed
+         chaseSpeed    speed while walking toward the player
+         health        stomps needed to win (5)
+         aggroEnterX / aggroExitX  start/stop following the player
+         attackTriggerX  distance at which a charge attack begins
+         chargeSpeed   speed of the charge dash
+         gateX         x position of the goal-sealing energy gate
+         arenaEnterX   player x that triggers "DEFEAT THE BOSS!" */
     {
         theme: "theme-3",
         start: { x: 50, y: 55 },
@@ -308,15 +343,17 @@ var LEVELS = [
         platforms: [
             { left: 0,   bottom: 0,   width: 200, height: 55 },
             { left: 340, bottom: 0,   width: 160, height: 55 },
-            { left: 640, bottom: 0,   width: 90,  height: 55 },
-            { left: 770, bottom: 0,   width: 130, height: 55 },
+            /* Boss arena: one continuous floor, no pits to fall in */
+            { left: 640, bottom: 0,   width: 260, height: 55 },
             { left: 225, bottom: 130, width: 60,  height: 18 },
             { left: 360, bottom: 140, width: 90,  height: 20 },
             { left: 470, bottom: 210, width: 80,  height: 20 },
             { left: 380, bottom: 280, width: 90,  height: 20 },
             { left: 560, bottom: 250, width: 80,  height: 20 },
-            { left: 690, bottom: 155, width: 70,  height: 18 },
-            { left: 790, bottom: 225, width: 70,  height: 18 }
+            /* Arena perches: hop on these to stomp the boss safely.
+               Both are reachable from the floor (~93px and ~133px). */
+            { left: 655, bottom: 130, width: 105, height: 18 },
+            { left: 800, bottom: 170, width: 80,  height: 18 }
         ],
         movers: [
             /* Lift over the first pit (alternative to the stone) */
@@ -332,26 +369,36 @@ var LEVELS = [
             { x: 500, y: 235 },
             { x: 410, y: 305 },
             { x: 585, y: 275 },
-            { x: 712, y: 178 },
-            { x: 812, y: 248 }
+            { x: 700, y: 156 },   /* on the first arena perch */
+            { x: 808, y: 196 },   /* on the high arena perch */
+            { x: 760, y: 62 }     /* low over the arena floor */
         ],
         powerUps: [
             { x: 410, y: 336, type: "superjump" },
-            { x: 660, y: 150, type: "speedboost" }
+            { x: 662, y: 158, type: "speedboost" }
         ],
         enemies: [
             { type: "patrol", x: 180, y: 55,  dir: -1, speed: 2.4, minX: 115, maxX: 192 },
             { type: "chaser", x: 470, y: 55,  dir: -1, speed: 1.8, chaseSpeed: 3.4,
               minX: 345, maxX: 462 },
             { type: "patrol", x: 530, y: 230, dir: -1, speed: 1.8, minX: 472, maxX: 512 },
-            { type: "patrol", x: 650, y: 55,  dir: 1,  speed: 2.6, minX: 642, maxX: 692 },
-            { type: "chaser", x: 872, y: 55,  dir: -1, speed: 1.8, chaseSpeed: 3.4,
-              minX: 772, maxX: 862 }
+            { type: "patrol", x: 650, y: 55,  dir: -1, speed: 2.2, minX: 644, maxX: 700 }
         ],
         checkpoints: [
-            { x: 350, y: 55 },   /* after the long first pit */
-            { x: 695, y: 173 }   /* on the ledge after the ferry crossing */
-        ]
+            { x: 350, y: 55 },    /* after the long first pit */
+            { x: 700, y: 148 }    /* on the first arena perch, above the boss */
+        ],
+        boss: {
+            x: 762, y: 55,
+            minX: 706, maxX: 830,      /* maxX = right edge, before the gate */
+            speed: 1.3, chaseSpeed: 2.6,
+            health: 5,
+            aggroEnterX: 190, aggroExitX: 260,
+            attackTriggerX: 170,
+            chargeSpeed: 5.4,
+            gateX: 836,
+            arenaEnterX: 600
+        }
     }
 ];
 
@@ -364,6 +411,11 @@ var coinsData = [];
 var powerUpsData = [];
 var enemiesData = [];
 var onMovingPlatform = null;
+
+/* Day 7: boss state (null in levels without a boss) and a flag so
+   the "DEFEAT THE BOSS!" banner + health bar only appear once */
+var bossData = null;
+var bossEncounterStarted = false;
 
 /* Small helper: create a positioned div for one entity */
 function makeEntity(className, x, y, w, h) {
@@ -453,6 +505,11 @@ function buildLevel(def) {
         var ckel = makeEntity("checkpoint", ckd.x, ckd.y);
         checkpointsData.push({ x: ckd.x, y: ckd.y, active: false, el: ckel });
     }
+
+    /* Day 7: only levels with a "boss" entry get a boss and a gate */
+    if (def.boss) {
+        initBoss(def.boss);
+    }
 }
 
 /* Raise a checkpoint flag: it becomes the new respawn point */
@@ -534,6 +591,219 @@ function defeatEnemy(e) {
     onMovingPlatform = null;
 }
 
+/* ============================================================
+   DAY 7: BOSS BATTLE (Level 3 only)
+
+   The boss has five states, all visible through CSS classes so
+   the player can read and dodge it:
+     patrol    walks back and forth inside the arena
+     chase     walks toward the player when they are nearby
+     telegraph stops and flashes for a moment (attack warning)
+     charge    short fast dash in the stored direction
+     recover   tired pause after charging (= attack cooldown)
+
+   Stomping it costs it 1 health; side contact kills the player
+   through the normal lives system. At 0 health it dies, the
+   energy gate in front of the goal shatters, and the level can
+   be finished.
+   ============================================================ */
+
+/* Create the boss DOM element, its data object and the health bar */
+function initBoss(bc) {
+    bossData = {
+        x: bc.x, y: bc.y,
+        startX: bc.x, startDir: -1,
+        dir: -1, faceLeft: true,
+        minX: bc.minX, maxX: bc.maxX,
+        speed: bc.speed, chaseSpeed: bc.chaseSpeed,
+        health: bc.health, maxHealth: bc.health,
+        aggroEnterX: bc.aggroEnterX, aggroExitX: bc.aggroExitX,
+        attackTriggerX: bc.attackTriggerX,
+        chargeSpeed: bc.chargeSpeed, chargeDir: -1,
+        state: "patrol",
+        nextAttackOk: 0, telegraphEnd: 0, chargeEnd: 0,
+        staggerUntil: 0, hitFlashUntil: 0,
+        gateX: bc.gateX, arenaEnterX: bc.arenaEnterX,
+        alive: true,
+        el: makeEntity("boss", bc.x, bc.y, BOSS_W, BOSS_H)
+    };
+
+    /* Energy gate that seals the goal while the boss is alive.
+       It stands on the arena floor (top of the ground = 55px). */
+    bossData.gateEl = makeEntity("boss-gate", bc.gateX, 55);
+
+    /* Build the segmented health bar (one segment per hit point) */
+    bossSegsEl.innerHTML = "";
+    for (var i = 0; i < bc.health; i++) {
+        var seg = document.createElement("span");
+        seg.className = "boss-seg";
+        bossSegsEl.appendChild(seg);
+    }
+}
+
+/* Reflect remaining health as lit/unlit bar segments */
+function updateBossHud() {
+    if (!bossData) return;
+    var segs = bossSegsEl.children;
+    for (var i = 0; i < segs.length; i++) {
+        segs[i].classList.toggle("lost", i >= bossData.health);
+    }
+}
+
+/* Begin an attack: flash first (fair warning), then dash */
+function startBossTelegraph(b, dx) {
+    b.state = "telegraph";
+    b.telegraphEnd = performance.now() + BOSS_TELEGRAPH_MS;
+    b.chargeDir = dx < 0 ? -1 : 1;   /* dash toward where the player was */
+    /* cooldown covers telegraph + charge + rest, so attacks come
+       at a steady, learnable rhythm */
+    b.nextAttackOk = b.telegraphEnd + BOSS_CHARGE_MS + BOSS_ATTACK_COOLDOWN_MS;
+}
+
+/* One AI step per frame. Timestamp-based, no setTimeout needed. */
+function updateBoss() {
+    if (!bossData || !bossData.alive) return;
+
+    var b = bossData;
+    var now = performance.now();
+
+    /* While staggered from a stomp the boss stands still */
+    if (now < b.staggerUntil) return;
+
+    var bossCx = b.x + BOSS_W / 2;
+    var playerCx = playerX + PLAYER_W / 2;
+    var dx = playerCx - bossCx;          /* signed distance to the player */
+    var distX = Math.abs(dx);
+
+    switch (b.state) {
+
+        case "patrol":
+            b.x += b.dir * b.speed;
+            if (b.x <= b.minX) { b.x = b.minX; b.dir = 1; }
+            if (b.x + BOSS_W >= b.maxX) { b.x = b.maxX - BOSS_W; b.dir = -1; }
+            if (distX <= b.aggroEnterX) {
+                b.state = "chase";
+            } else if (distX <= b.attackTriggerX && now >= b.nextAttackOk) {
+                startBossTelegraph(b, dx);
+            }
+            break;
+
+        case "chase":
+            b.dir = dx < 0 ? -1 : 1;
+            b.x += b.dir * b.chaseSpeed;
+            if (b.x <= b.minX) { b.x = b.minX; }
+            if (b.x + BOSS_W >= b.maxX) { b.x = b.maxX - BOSS_W; }
+            if (distX > b.aggroExitX) {
+                b.state = "patrol";      /* player escaped */
+            } else if (distX <= b.attackTriggerX && now >= b.nextAttackOk) {
+                startBossTelegraph(b, dx);
+            }
+            break;
+
+        case "telegraph":
+            if (now >= b.telegraphEnd) {
+                b.state = "charge";
+                b.chargeEnd = now + BOSS_CHARGE_MS;
+            }
+            break;
+
+        case "charge":
+            b.x += b.chargeDir * b.chargeSpeed;
+            /* Hitting a wall ends the charge early */
+            if (b.x <= b.minX) { b.x = b.minX; b.state = "recover"; }
+            if (b.x + BOSS_W >= b.maxX) { b.x = b.maxX - BOSS_W; b.state = "recover"; }
+            if (b.state === "charge" && now >= b.chargeEnd) {
+                b.state = "recover";
+            }
+            break;
+
+        case "recover":
+            /* Tired pause; once the cooldown is over it chases again */
+            if (now >= b.nextAttackOk) b.state = "chase";
+            break;
+    }
+
+    b.faceLeft = (b.state === "charge") ? b.chargeDir < 0 : b.dir < 0;
+}
+
+/* Player stomped the boss: damage, points, bounce and hit effect */
+function hitBoss(b) {
+    b.health--;
+    updateBossHud();
+
+    score += BOSS_HIT_SCORE;
+    scoreEl.textContent = score;
+
+    /* Strong bounce so the player clears the boss after a hit */
+    velocityY = BOSS_STOMP_BOUNCE;
+    isOnGround = false;
+    onMovingPlatform = null;
+
+    var now = performance.now();
+    b.hitFlashUntil = now + BOSS_HIT_FLASH_MS;
+    b.staggerUntil = now + BOSS_STAGGER_MS;
+    b.state = "patrol";
+    /* A successful stomp also buys the player attack-free time */
+    b.nextAttackOk = now + BOSS_ATTACK_COOLDOWN_MS;
+
+    spawnBossHitFx(b.x + BOSS_W / 2, b.y + BOSS_H - 6, "+" + BOSS_HIT_SCORE);
+
+    if (b.health <= 0) {
+        defeatBoss(b);
+    }
+}
+
+/* Boss reached 0 health: disable it, open the gate, celebrate */
+function defeatBoss(b) {
+    b.alive = false;
+    b.health = 0;
+    updateBossHud();
+
+    score += BOSS_DEFEAT_BONUS;
+    scoreEl.textContent = score;
+
+    b.el.classList.remove("telegraph", "charging", "hit-flash");
+    b.el.classList.add("defeated");
+    if (b.gateEl) b.gateEl.classList.add("destroyed");
+
+    bossHudEl.classList.add("boss-defeated");
+    showBanner("BOSS DEFEATED!");
+    spawnBossHitFx(b.x + BOSS_W / 2, b.y + BOSS_H, "+" + BOSS_DEFEAT_BONUS);
+}
+
+/* Small one-shot visual effects for boss hits. Everything removes
+   itself via animationend, so no timers have to be tracked. */
+function spawnBossHitFx(cx, bottomY, text) {
+    var burst = document.createElement("div");
+    burst.className = "spark-burst";
+    burst.style.left = cx + "px";
+    burst.style.bottom = bottomY + "px";
+
+    for (var s = 0; s < 7; s++) {
+        var sp = document.createElement("div");
+        sp.className = "spark";
+        var ang = (Math.PI * 2 * s) / 7 + Math.random() * 0.6;
+        var dist = 26 + Math.random() * 22;
+        sp.style.setProperty("--sx", Math.round(Math.cos(ang) * dist) + "px");
+        sp.style.setProperty("--sy", Math.round(Math.sin(ang) * dist) + "px");
+        burst.appendChild(sp);
+    }
+    burst.addEventListener("animationend", function() {
+        if (burst.parentNode) burst.parentNode.removeChild(burst);
+    });
+    entities.appendChild(burst);
+
+    var pop = document.createElement("div");
+    pop.className = "score-pop";
+    pop.textContent = text;
+    pop.style.left = (cx - 24) + "px";
+    pop.style.bottom = (bottomY + 12) + "px";
+    pop.addEventListener("animationend", function() {
+        if (pop.parentNode) pop.parentNode.removeChild(pop);
+    });
+    entities.appendChild(pop);
+}
+
 /* ===== INPUT ===== */
 /* These listeners are registered exactly once for the whole game.
    Changing levels never adds new ones. */
@@ -611,6 +881,13 @@ function loadLevel(index) {
         respawnTimer = null;
     }
 
+    /* Day 7: tear down the previous boss and hide its health bar.
+       Levels without a "boss" entry simply stay bar-less. */
+    bossData = null;
+    bossEncounterStarted = false;
+    bossHudEl.classList.add("hidden");
+    bossHudEl.classList.remove("boss-defeated");
+
     /* Remove all old entities (platforms, coins, enemies, ...) */
     entities.innerHTML = "";
 
@@ -674,6 +951,10 @@ function loadLevel(index) {
 
 /* Reached the flag: either advance or win the whole game */
 function completeLevel() {
+    /* Safety net (the gate already blocks the way): while the
+       boss is alive the final goal stays locked */
+    if (bossData && bossData.alive) return;
+
     gameWon = true;
 
     if (currentLevelIndex === LEVELS.length - 1) {
@@ -769,6 +1050,19 @@ function respawnPlayer() {
         en.el.classList.remove("chasing");
     }
 
+    /* Day 7: send a living boss back to its spawn spot too, but
+       keep its current health - the fight resumes where it was */
+    if (bossData && bossData.alive) {
+        var bd = bossData;
+        bd.x = bd.startX;
+        bd.dir = bd.startDir;
+        bd.faceLeft = bd.startDir < 0;
+        bd.state = "patrol";
+        bd.staggerUntil = 0;
+        bd.hitFlashUntil = 0;
+        bd.nextAttackOk = 0;
+    }
+
     /* Protected for a moment: blinking player, deadly contact off */
     invulnUntil = performance.now() + RESPAWN_INVULN_MS;
     player.classList.remove("dying");
@@ -855,6 +1149,13 @@ function gameLoop() {
     if (playerX < 0) { playerX = 0; playerVX = 0; }
     if (playerX > GAME_W - PLAYER_W) { playerX = GAME_W - PLAYER_W; playerVX = 0; }
 
+    /* Day 7: while the boss lives, the energy gate seals the final
+       goal - the player simply cannot walk past it */
+    if (bossData && bossData.alive && playerX + PLAYER_W > bossData.gateX) {
+        playerX = bossData.gateX - PLAYER_W;
+        if (playerVX > 0) playerVX = 0;
+    }
+
     /* Physics */
     prevY = playerY;
     velocityY -= GRAVITY;
@@ -897,6 +1198,9 @@ function gameLoop() {
     /* Enemy AI */
     updateEnemies();
 
+    /* Day 7: boss AI */
+    updateBoss();
+
     /* Coin collection */
     for (i = 0; i < coinsData.length; i++) {
         var c = coinsData[i];
@@ -936,6 +1240,15 @@ function gameLoop() {
         }
     }
 
+    /* Day 7: entering the boss arena starts the encounter - show
+       the health bar and warn the player once */
+    if (bossData && bossData.alive && !bossEncounterStarted &&
+        playerX + PLAYER_W >= bossData.arenaEnterX) {
+        bossEncounterStarted = true;
+        bossHudEl.classList.remove("hidden");
+        showBanner("DEFEAT THE BOSS!");
+    }
+
     /* Power-up timer expiry (checked every frame, no setTimeout) */
     if (activePower && performance.now() >= powerEndTime) {
         expirePowerUp();
@@ -971,6 +1284,27 @@ function gameLoop() {
         /* While invulnerable the player passes through enemies */
     }
 
+    /* Day 7: boss collision. Stomping from above damages the boss;
+       side contact kills the player through the normal lives system.
+       While invulnerable (after a respawn) the boss is harmless. */
+    if (bossData && bossData.alive && !isDying) {
+        var bd = bossData;
+        var bossHorizontalHit =
+            playerX + PLAYER_W > bd.x && playerX < bd.x + BOSS_W;
+        var bossVerticalHit =
+            playerY + PLAYER_H > bd.y && playerY < bd.y + BOSS_H;
+
+        if (bossHorizontalHit && bossVerticalHit) {
+            var bossTop = bd.y + BOSS_H;
+            if (velocityY < 0 && prevY >= bossTop - 6) {
+                hitBoss(bd);          /* clean stomp from above */
+            } else if (!invulnerable) {
+                killPlayer();         /* side or bottom touch */
+                return;
+            }
+        }
+    }
+
     /* Goal reached: finish this level (or win the whole game) */
     if (playerX + PLAYER_W >= currentGoalX) {
         completeLevel();
@@ -1002,6 +1336,17 @@ function gameLoop() {
             e.el.classList.toggle("chasing", e.alive && e.chasing);
         }
         if (e.alive) e.el.style.left = e.x + "px";
+    }
+
+    /* Day 7: draw the boss - position, facing and state classes */
+    if (bossData && bossData.alive) {
+        var bs = bossData;
+        bs.el.style.left = bs.x + "px";
+        bs.el.classList.toggle("face-left", bs.faceLeft);
+        bs.el.classList.toggle("telegraph", bs.state === "telegraph");
+        bs.el.classList.toggle("charging", bs.state === "charge");
+        bs.el.classList.toggle("hit-flash",
+            performance.now() < bs.hitFlashUntil);
     }
 
     for (i = 0; i < movingPlatforms.length; i++) {
