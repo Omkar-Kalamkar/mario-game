@@ -37,6 +37,153 @@ var goalEl = document.getElementById("goal");
 var bannerEl = document.getElementById("levelBanner");
 var bossHudEl = document.getElementById("bossHud");
 var bossSegsEl = document.getElementById("bossSegs");
+var soundBtnEl = document.getElementById("soundBtn");
+
+/* ===== SOUND SYSTEM (Web Audio API) ===== */
+
+var audioCtx = null;      /* created lazily on first user gesture */
+var soundEnabled = true;  /* toggle controlled by the HUD button */
+
+function ensureAudioCtx() {
+    if (!audioCtx) {
+        try {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        } catch (err) {
+            audioCtx = null;
+        }
+    }
+    /* Resume if suspended (Chrome autoplay policy) */
+    if (audioCtx && audioCtx.state === "suspended") {
+        audioCtx.resume();
+    }
+    return audioCtx;
+}
+
+/* Helper: play a short oscillator tone */
+function playTone(type, freq, dur, vol, rampEnd) {
+    if (!soundEnabled) return;
+    var ctx = ensureAudioCtx();
+    if (!ctx) return;
+    var osc = ctx.createOscillator();
+    var gain = ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, ctx.currentTime);
+    if (rampEnd !== undefined) {
+        osc.frequency.linearRampToValueAtTime(rampEnd, ctx.currentTime + dur);
+    }
+    gain.gain.setValueAtTime(vol || 0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + dur);
+}
+
+/* Helper: play a noise burst (for percussive sounds) */
+function playNoise(dur, vol) {
+    if (!soundEnabled) return;
+    var ctx = ensureAudioCtx();
+    if (!ctx) return;
+    var bufLen = ctx.sampleRate * dur;
+    var buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+    var data = buf.getChannelData(0);
+    for (var i = 0; i < bufLen; i++) {
+        data[i] = Math.random() * 2 - 1;
+    }
+    var src = ctx.createBufferSource();
+    src.buffer = buf;
+    var gain = ctx.createGain();
+    gain.gain.setValueAtTime(vol || 0.15, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+    src.connect(gain);
+    gain.connect(ctx.destination);
+    src.start(ctx.currentTime);
+    src.stop(ctx.currentTime + dur);
+}
+
+/* --- Individual sound effects --- */
+
+function sfxJump() {
+    playTone("square", 250, 0.15, 0.18, 600);
+}
+
+function sfxCoin() {
+    playTone("sine", 988, 0.08, 0.25);
+    setTimeout(function() { playTone("sine", 1319, 0.15, 0.25); }, 80);
+}
+
+function sfxPowerUp() {
+    playTone("square", 440, 0.12, 0.2, 660);
+    setTimeout(function() { playTone("square", 660, 0.12, 0.2, 880); }, 100);
+    setTimeout(function() { playTone("square", 880, 0.2, 0.22, 1100); }, 200);
+}
+
+function sfxEnemyStomp() {
+    playNoise(0.08, 0.2);
+    playTone("sine", 300, 0.1, 0.2, 100);
+}
+
+function sfxCheckpoint() {
+    playTone("sine", 523, 0.12, 0.25);
+    setTimeout(function() { playTone("sine", 659, 0.12, 0.25); }, 100);
+    setTimeout(function() { playTone("sine", 784, 0.2, 0.3); }, 200);
+}
+
+function sfxDeath() {
+    playTone("square", 400, 0.15, 0.2, 200);
+    setTimeout(function() { playTone("square", 200, 0.25, 0.2, 80); }, 150);
+}
+
+function sfxLevelComplete() {
+    var notes = [523, 659, 784, 1047];
+    for (var i = 0; i < notes.length; i++) {
+        (function(freq, delay) {
+            setTimeout(function() { playTone("square", freq, 0.18, 0.22); }, delay);
+        })(notes[i], i * 110);
+    }
+}
+
+function sfxBossHit() {
+    playNoise(0.12, 0.25);
+    playTone("square", 150, 0.15, 0.25, 80);
+}
+
+function sfxBossDefeated() {
+    playNoise(0.2, 0.2);
+    var notes = [262, 330, 392, 523, 659, 784];
+    for (var i = 0; i < notes.length; i++) {
+        (function(freq, delay) {
+            setTimeout(function() { playTone("sine", freq, 0.2, 0.2); }, delay);
+        })(notes[i], i * 100 + 150);
+    }
+}
+
+function sfxGameOver() {
+    var notes = [392, 349, 330, 262];
+    for (var i = 0; i < notes.length; i++) {
+        (function(freq, delay) {
+            setTimeout(function() { playTone("square", freq, 0.3, 0.2); }, delay);
+        })(notes[i], i * 250);
+    }
+}
+
+function sfxVictory() {
+    var notes = [523, 659, 784, 1047, 784, 1047, 1319];
+    for (var i = 0; i < notes.length; i++) {
+        (function(freq, delay) {
+            setTimeout(function() { playTone("square", freq, 0.2, 0.22); }, delay);
+        })(notes[i], i * 130);
+    }
+}
+
+/* --- Sound toggle --- */
+
+soundBtnEl.addEventListener("click", function() {
+    ensureAudioCtx();
+    soundEnabled = !soundEnabled;
+    soundBtnEl.textContent = soundEnabled ? "\uD83D\uDD0A SOUND ON" : "\uD83D\uDD07 SOUND OFF";
+    soundBtnEl.classList.toggle("off", !soundEnabled);
+});
 
 /* ===== CONSTANTS ===== */
 
@@ -100,6 +247,7 @@ function collectPowerUp(pu) {
 
     player.classList.remove("power-superjump", "power-speedboost");
     player.classList.add(pu.type === "superjump" ? "power-superjump" : "power-speedboost");
+    sfxPowerUp();
 }
 
 function expirePowerUp() {
@@ -526,6 +674,7 @@ function activateCheckpoint(ck) {
 
     score += CHECKPOINT_BONUS;
     scoreEl.textContent = score;
+    sfxCheckpoint();
 }
 
 /* One enemy AI step: patrol boundaries, chase logic for chasers */
@@ -589,6 +738,7 @@ function defeatEnemy(e) {
     velocityY = currentJumpPower() * STOMP_BOUNCE_FACTOR;
     isOnGround = false;
     onMovingPlatform = null;
+    sfxEnemyStomp();
 }
 
 /* ============================================================
@@ -747,6 +897,7 @@ function hitBoss(b) {
     b.nextAttackOk = now + BOSS_ATTACK_COOLDOWN_MS;
 
     spawnBossHitFx(b.x + BOSS_W / 2, b.y + BOSS_H - 6, "+" + BOSS_HIT_SCORE);
+    sfxBossHit();
 
     if (b.health <= 0) {
         defeatBoss(b);
@@ -769,6 +920,7 @@ function defeatBoss(b) {
     bossHudEl.classList.add("boss-defeated");
     showBanner("BOSS DEFEATED!");
     spawnBossHitFx(b.x + BOSS_W / 2, b.y + BOSS_H, "+" + BOSS_DEFEAT_BONUS);
+    sfxBossDefeated();
 }
 
 /* Small one-shot visual effects for boss hits. Everything removes
@@ -833,6 +985,7 @@ function doJump() {
         velocityY = currentJumpPower();
         isOnGround = false;
         onMovingPlatform = null;
+        sfxJump();
     }
 }
 
@@ -958,6 +1111,7 @@ function completeLevel() {
     gameWon = true;
 
     if (currentLevelIndex === LEVELS.length - 1) {
+        sfxVictory();
         showMessage(
             "YOU WIN!",
             "Final score: " + score + "  |  Coins collected: " + totalCoinsRun,
@@ -965,6 +1119,7 @@ function completeLevel() {
             restartGame
         );
     } else {
+        sfxLevelComplete();
         showMessage(
             "LEVEL " + (currentLevelIndex + 1) + " COMPLETE!",
             "Score so far: " + score,
@@ -1000,10 +1155,12 @@ function killPlayer() {
     }
     player.classList.remove("airborne", "invulnerable");
     player.classList.add("dying");
+    sfxDeath();
 
     if (lives <= 0) {
         gameOver = true;
         isDying = false;
+        sfxGameOver();
         showMessage(
             "GAME OVER",
             "Final score: " + score + "  |  Coins collected: " + totalCoinsRun,
@@ -1214,6 +1371,7 @@ function gameLoop() {
             totalCoinsRun++;
             scoreEl.textContent = score;
             coinCountEl.textContent = coinCount;
+            sfxCoin();
         }
     }
 

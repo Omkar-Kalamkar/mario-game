@@ -503,6 +503,35 @@ body {
     border-radius: 5px;
 }
 
+/* Sound toggle button in the HUD */
+#soundBtn {
+    background: #333;
+    color: #ffd23f;
+    border: 2px solid #555;
+    border-radius: 6px;
+    padding: 3px 12px;
+    font-size: 14px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+#soundBtn:hover {
+    background: #444;
+    border-color: #ffd23f;
+}
+
+#soundBtn.off {
+    color: #888;
+    border-color: #666;
+}
+
+#soundBtn.off:hover {
+    border-color: #aaa;
+}
+
 /* ===== LEVEL BANNER (short "LEVEL X" splash when a level starts) ===== */
 #levelBanner {
     position: absolute;
