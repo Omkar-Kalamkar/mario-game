@@ -9,15 +9,35 @@
 <body>
     <div class="game-container">
         <div class="hud">
-            <span>SCORE: <span id="score">0</span></span>
-            <span>COINS: <span id="coinCount">0</span> / <span id="coinTotal">0</span></span>
-            <span class="lives-hud">LIVES: <span id="livesNum">3</span><span id="livesHearts"></span></span>
-            <span>LEVEL: <span id="levelNum">1</span></span>
-            <span id="powerHud">
-                <span id="powerName">NO POWER-UP</span>
-                <span id="powerTimerBarWrap"><span id="powerTimerBar"></span></span>
-            </span>
-            <button id="soundBtn" title="Toggle sound">🔊 SOUND ON</button>
+            <div class="hud-stats">
+                <div class="stat">
+                    <span class="stat-label">SCORE</span>
+                    <span class="stat-value stat-score" id="score">0</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">COINS</span>
+                    <span class="stat-value stat-coins"><span id="coinCount">0</span><span class="coin-sep">/</span><span id="coinTotal">0</span></span>
+                </div>
+                <div class="stat" id="livesStat">
+                    <span class="stat-label">LIVES</span>
+                    <span class="stat-value stat-lives"><span id="livesNum">3</span><span id="livesHearts"></span></span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">LEVEL</span>
+                    <span class="stat-value stat-level" id="levelNum">1</span>
+                </div>
+            </div>
+            <div class="hud-actions">
+                <div id="powerHud" class="stat power-hud">
+                    <span class="power-line">
+                        <span id="powerName">POWER-UP: NONE</span>
+                        <span id="powerTime"></span>
+                    </span>
+                    <span id="powerTimerBarWrap"><span id="powerTimerBar"></span></span>
+                </div>
+                <button id="soundBtn" class="hud-btn" title="Toggle sound">🔊 SOUND ON</button>
+                <button id="pauseBtn" class="hud-btn pause-btn" title="Pause game">⏸ PAUSE</button>
+            </div>
         </div>
 
         <div id="game">
@@ -55,10 +75,19 @@
                 <p id="messageInfo"></p>
                 <button id="messageBtn">Restart</button>
             </div>
+
+            <!-- Day 9: pause / settings overlay (shown by script.js) -->
+            <div id="pauseMenu">
+                <h2>GAME PAUSED</h2>
+                <p class="pause-hint">Press P or Esc to resume</p>
+                <button id="resumeBtn" class="pause-menu-btn resume-btn">RESUME</button>
+                <button id="restartBtn" class="pause-menu-btn restart-btn">RESTART</button>
+                <button id="pauseSoundBtn" class="pause-menu-btn sound-btn">🔊 SOUND ON</button>
+            </div>
         </div>
 
         <div class="controls">
-            <p>&larr; &rarr; Move &nbsp;|&nbsp; &uarr; / Space = Jump &nbsp;|&nbsp; Touch the flags to set your respawn point &nbsp;|&nbsp; Stomp the Level 3 boss to break the gate and reach the flag</p>
+            <p>&larr; &rarr; Move &nbsp;|&nbsp; &uarr; / Space = Jump &nbsp;|&nbsp; P / Esc = Pause &nbsp;|&nbsp; Touch the flags to set your respawn point &nbsp;|&nbsp; Stomp the Level 3 boss to break the gate and reach the flag</p>
         </div>
     </div>
 

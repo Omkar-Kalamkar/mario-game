@@ -39,6 +39,15 @@ var bossHudEl = document.getElementById("bossHud");
 var bossSegsEl = document.getElementById("bossSegs");
 var soundBtnEl = document.getElementById("soundBtn");
 
+/* Day 9: extra HUD + pause menu elements */
+var powerTimeEl = document.getElementById("powerTime");
+var livesStatEl = document.getElementById("livesStat");
+var pauseBtnEl = document.getElementById("pauseBtn");
+var pauseMenuEl = document.getElementById("pauseMenu");
+var resumeBtnEl = document.getElementById("resumeBtn");
+var restartBtnEl = document.getElementById("restartBtn");
+var pauseSoundBtnEl = document.getElementById("pauseSoundBtn");
+
 /* ===== SOUND SYSTEM (Web Audio API) ===== */
 
 var audioCtx = null;      /* created lazily on first user gesture */
@@ -176,14 +185,27 @@ function sfxVictory() {
     }
 }
 
-/* --- Sound toggle --- */
+/* --- Sound toggle (HUD button + pause menu share one handler).
+   onclicks are used instead of addEventListener so a button can
+   never collect duplicate listeners. --- */
 
-soundBtnEl.addEventListener("click", function() {
+function toggleSound() {
     ensureAudioCtx();
     soundEnabled = !soundEnabled;
+    updateSoundUI();
+}
+
+/* Keep both sound buttons in sync with the current setting */
+function updateSoundUI() {
     soundBtnEl.textContent = soundEnabled ? "\uD83D\uDD0A SOUND ON" : "\uD83D\uDD07 SOUND OFF";
     soundBtnEl.classList.toggle("off", !soundEnabled);
-});
+    pauseSoundBtnEl.textContent = soundEnabled ? "\uD83D\uDD0A SOUND: ON" : "\uD83D\uDD07 SOUND: OFF";
+    pauseSoundBtnEl.classList.toggle("off", !soundEnabled);
+}
+
+soundBtnEl.onclick = toggleSound;
+pauseSoundBtnEl.onclick = toggleSound;
+updateSoundUI();
 
 /* ===== CONSTANTS ===== */
 
@@ -204,6 +226,10 @@ var PIT_FALL_Y = -70;
 var ACCELERATION = 0.55;
 var DECELERATION = 0.45;
 var MAX_SPEED = 5;
+
+/* Day 9: how long the "LEVEL X READY!" banner shows before the
+   level actually starts (also the pauseable level-start timer) */
+var BANNER_WAIT_MS = 1000;
 
 /* ===== LIVES / CHECKPOINTS ===== */
 
@@ -240,6 +266,7 @@ function collectPowerUp(pu) {
     pu.el.style.display = "none";
     score += 100;
     scoreEl.textContent = score;
+    flashScore();
 
     activePower = pu.type;
     powerEndTime = performance.now() +
@@ -258,20 +285,25 @@ function expirePowerUp() {
 
 function updatePowerHud() {
     if (!activePower) {
-        powerNameEl.textContent = "NO POWER-UP";
+        powerNameEl.textContent = "POWER-UP: NONE";
         powerNameEl.className = "";
+        powerTimeEl.textContent = "";
         powerTimerBar.style.width = "0%";
         return;
     }
+
     var total = activePower === "superjump" ? SUPER_JUMP_DURATION : SPEED_BOOST_DURATION;
     var remaining = powerEndTime - performance.now();
     if (remaining < 0) remaining = 0;
-    var secondsLeft = Math.ceil(remaining / 1000);
+
+    /* Smooth one-decimal timer, refreshed every frame */
+    var secondsLeft = (remaining / 1000).toFixed(1);
 
     powerNameEl.textContent =
-        (activePower === "superjump" ? "SUPER JUMP" : "SPEED BOOST") + ": " + secondsLeft + "s";
+        activePower === "superjump" ? "SUPER JUMP" : "SPEED BOOST";
     powerNameEl.className = activePower === "superjump"
         ? "power-label-superjump" : "power-label-speedboost";
+    powerTimeEl.textContent = "TIME: " + secondsLeft + "s";
     powerTimerBar.style.width = Math.ceil((remaining / total) * 100) + "%";
 }
 
@@ -297,6 +329,13 @@ var playerVX = 0;
 var isOnGround = true;
 var gameOver = false;
 var gameWon = false;
+
+/* Day 9: explicit game state so the pause menu can only appear
+   during real gameplay. Values: "banner", "playing", "dying",
+   "levelcomplete", "gameover", "win". */
+var gameState = "banner";
+var paused = false;       /* true while the pause menu is open */
+var pausedStartMs = 0;    /* timestamp when the current pause began */
 
 /* score and totalCoinsRun last for the whole game (all levels),
    coinCount only counts the coins of the current level. */
@@ -674,6 +713,7 @@ function activateCheckpoint(ck) {
 
     score += CHECKPOINT_BONUS;
     scoreEl.textContent = score;
+    flashScore();
     sfxCheckpoint();
 }
 
@@ -734,6 +774,7 @@ function defeatEnemy(e) {
 
     score += STOMP_SCORE;
     scoreEl.textContent = score;
+    flashScore();
 
     velocityY = currentJumpPower() * STOMP_BOUNCE_FACTOR;
     isOnGround = false;
@@ -883,6 +924,7 @@ function hitBoss(b) {
 
     score += BOSS_HIT_SCORE;
     scoreEl.textContent = score;
+    flashScore();
 
     /* Strong bounce so the player clears the boss after a hit */
     velocityY = BOSS_STOMP_BOUNCE;
@@ -912,6 +954,7 @@ function defeatBoss(b) {
 
     score += BOSS_DEFEAT_BONUS;
     scoreEl.textContent = score;
+    flashScore();
 
     b.el.classList.remove("telegraph", "charging", "hit-flash");
     b.el.classList.add("defeated");
@@ -945,15 +988,7 @@ function spawnBossHitFx(cx, bottomY, text) {
     });
     entities.appendChild(burst);
 
-    var pop = document.createElement("div");
-    pop.className = "score-pop";
-    pop.textContent = text;
-    pop.style.left = (cx - 24) + "px";
-    pop.style.bottom = (bottomY + 12) + "px";
-    pop.addEventListener("animationend", function() {
-        if (pop.parentNode) pop.parentNode.removeChild(pop);
-    });
-    entities.appendChild(pop);
+    spawnFloatingText(text, cx - 20, bottomY + 12);
 }
 
 /* ===== INPUT ===== */
@@ -965,6 +1000,14 @@ document.addEventListener("keydown", function(e) {
         e.key === "ArrowUp" || e.key === " ") {
         e.preventDefault();
     }
+
+    /* Day 9: P or Escape toggles the pause menu */
+    if (e.key === "Escape" || e.key === "p" || e.key === "P") {
+        e.preventDefault();
+        togglePause();
+        return;
+    }
+
     if (e.key === "ArrowLeft") keys.left = true;
     if (e.key === "ArrowRight") keys.right = true;
     if (e.key === "ArrowUp" || e.key === " ") doJump();
@@ -981,7 +1024,7 @@ document.addEventListener("keyup", function(e) {
 /* ===== JUMP ===== */
 
 function doJump() {
-    if (isOnGround && !gameOver && !gameWon && !isDying) {
+    if (isOnGround && !gameOver && !gameWon && !isDying && !paused) {
         velocityY = currentJumpPower();
         isOnGround = false;
         onMovingPlatform = null;
@@ -1022,7 +1065,7 @@ function loadLevel(index) {
 
     /* Stop anything still running from the previous level */
     if (levelStartTimer !== null) {
-        clearTimeout(levelStartTimer);
+        clearPausableTimer(levelStartTimer);
         levelStartTimer = null;
     }
     if (rafId !== null) {
@@ -1030,7 +1073,7 @@ function loadLevel(index) {
         rafId = null;
     }
     if (respawnTimer !== null) {
-        clearTimeout(respawnTimer);
+        clearPausableTimer(respawnTimer);
         respawnTimer = null;
     }
 
@@ -1093,13 +1136,16 @@ function loadLevel(index) {
 
     /* Hide overlays and show the level banner */
     messageEl.style.display = "none";
-    showBanner("LEVEL " + (index + 1));
+    showBanner("LEVEL " + (index + 1) + " READY!");
 
-    /* Give the banner a moment before the action starts */
-    levelStartTimer = setTimeout(function() {
-        levelStartTimer = null;
+    /* Give the banner a moment before the action starts. This
+       timer is pauseable, so pausing during the splash keeps the
+       remaining wait time intact. */
+    gameState = "banner";
+    levelStartTimer = startPausableTimer(function() {
+        gameState = "playing";
         startLoop();
-    }, 1000);
+    }, BANNER_WAIT_MS);
 }
 
 /* Reached the flag: either advance or win the whole game */
@@ -1111,6 +1157,7 @@ function completeLevel() {
     gameWon = true;
 
     if (currentLevelIndex === LEVELS.length - 1) {
+        gameState = "win";
         sfxVictory();
         showMessage(
             "YOU WIN!",
@@ -1119,6 +1166,7 @@ function completeLevel() {
             restartGame
         );
     } else {
+        gameState = "levelcomplete";
         sfxLevelComplete();
         showMessage(
             "LEVEL " + (currentLevelIndex + 1) + " COMPLETE!",
@@ -1138,7 +1186,9 @@ function killPlayer() {
 
     isDying = true;
     lives--;
+    gameState = "dying";
     renderLives();
+    flashLives();   /* Day 9: HUD feedback for the lost life */
 
     /* Temporary power-ups wear off and movement stops */
     expirePowerUp();
@@ -1159,6 +1209,7 @@ function killPlayer() {
 
     if (lives <= 0) {
         gameOver = true;
+        gameState = "gameover";
         isDying = false;
         sfxGameOver();
         showMessage(
@@ -1170,11 +1221,9 @@ function killPlayer() {
         return;
     }
 
-    /* Brief pause, then back to the checkpoint */
-    respawnTimer = setTimeout(function() {
-        respawnTimer = null;
-        respawnPlayer();
-    }, DEATH_PAUSE_MS);
+    /* Brief pause, then back to the checkpoint. This timer is
+       pauseable so the death hop can be frozen too. */
+    respawnTimer = startPausableTimer(respawnPlayer, DEATH_PAUSE_MS);
 }
 
 /* Bring the player back at the active checkpoint (or the level's
@@ -1230,23 +1279,235 @@ function respawnPlayer() {
     player.style.transform = "";
 
     showBanner("LIVES LEFT: " + lives);
+    gameState = "playing";
     startLoop();
 }
 
-/* Complete reset: fresh score, full lives, all checkpoints inactive */
+/* Complete reset: fresh score, full lives, all checkpoints inactive.
+   Sound preference (Day 8) intentionally carries over. */
 function restartGame() {
     score = 0;
     totalCoinsRun = 0;
     lives = START_LIVES;
     isDying = false;
     invulnUntil = 0;
+
+    /* Close any pause menu and cancel every pending gameplay
+       timer before rebuilding Level 1 */
+    paused = false;
+    pausedStartMs = 0;
+    game.classList.remove("paused");
+    hidePauseMenu();
+
     if (respawnTimer !== null) {
-        clearTimeout(respawnTimer);
+        clearPausableTimer(respawnTimer);
         respawnTimer = null;
     }
+    if (levelStartTimer !== null) {
+        clearPausableTimer(levelStartTimer);
+        levelStartTimer = null;
+    }
+    if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+    }
+
     renderLives();
     loadLevel(0);
 }
+
+/* ============================================================
+   DAY 9: HUD FEEDBACK ANIMATIONS
+
+   Tiny helpers that replay a CSS animation whenever a value
+   changes, plus small floating "+N" texts on the game field.
+   ============================================================ */
+
+/* Restart a CSS animation on an element (remove, force reflow, add) */
+function bumpFlash(el, className) {
+    el.classList.remove(className);
+    void el.offsetWidth;
+    el.classList.add(className);
+}
+
+function flashScore() { bumpFlash(scoreEl, "flash"); }
+function flashCoins() { bumpFlash(coinCountEl, "flash"); }
+function flashLives() { bumpFlash(livesStatEl, "lost"); }
+
+/* A short floating text (like "+50") that rises and fades out.
+   It removes itself via animationend, so no timers are tracked. */
+function spawnFloatingText(text, cx, bottomY) {
+    var pop = document.createElement("div");
+    pop.className = "score-pop";
+    pop.textContent = text;
+    pop.style.left = (cx - 20) + "px";
+    pop.style.bottom = bottomY + "px";
+    pop.addEventListener("animationend", function() {
+        if (pop.parentNode) pop.parentNode.removeChild(pop);
+    });
+    entities.appendChild(pop);
+    return pop;
+}
+
+/* ============================================================
+   DAY 9: PAUSE SYSTEM
+
+   Pausing cancels the animation frame and suspends every
+   setTimeout that drives gameplay. On resume the timeouts are
+   re-scheduled with the time they had left, and all absolute
+   timestamps (power-up timers, respawn invulnerability, boss
+   timers...) are pushed forward by the time spent paused, so
+   nothing ever "loses" time while the game is frozen.
+   ============================================================ */
+
+/* Running pauseable timeouts that know how much time is left */
+var pausableTimers = [];
+
+/* The timeout fired or was cleared: drop it from the list and
+   make sure its "levelStartTimer"/"respawnTimer" handle is null */
+function firePausableTimer(t) {
+    var idx = pausableTimers.indexOf(t);
+    if (idx !== -1) pausableTimers.splice(idx, 1);
+    if (levelStartTimer === t) levelStartTimer = null;
+    if (respawnTimer === t) respawnTimer = null;
+    t.fn();
+}
+
+/* Start a pauseable timer, tracking how much time was left */
+function startPausableTimer(fn, ms) {
+    var t = { fn: fn, remaining: ms, startedAt: performance.now(), id: null };
+    pausableTimers.push(t);
+    t.id = setTimeout(function() {
+        firePausableTimer(t);
+    }, ms);
+    return t;
+}
+
+/* Cancel a pauseable timer (also removes it from the list) */
+function clearPausableTimer(t) {
+    if (!t) return;
+    if (t.id !== null) {
+        clearTimeout(t.id);
+        t.id = null;
+    }
+    var idx = pausableTimers.indexOf(t);
+    if (idx !== -1) pausableTimers.splice(idx, 1);
+}
+
+/* On pause: record the remaining time of every running timer,
+   then clear its timeout so nothing can fire while frozen */
+function suspendPausableTimers() {
+    for (var i = 0; i < pausableTimers.length; i++) {
+        var t = pausableTimers[i];
+        if (t.id === null) continue;
+        var elapsed = performance.now() - t.startedAt;
+        t.remaining = elapsed >= t.remaining ? 0 : t.remaining - elapsed;
+        clearTimeout(t.id);
+        t.id = null;
+    }
+}
+
+/* On resume: re-arm every suspended timer with the time it had
+   left; a timer whose time ran out during the pause fires soon */
+function resumePausableTimers() {
+    for (var i = 0; i < pausableTimers.length; i++) {
+        var t = pausableTimers[i];
+        if (t.id !== null) continue;
+        t.startedAt = performance.now();
+        t.id = setTimeout(function() {
+            firePausableTimer(t);
+        }, Math.max(0, t.remaining));
+    }
+}
+
+/* Push all absolute timestamps forward by the paused duration so
+   their remaining time is preserved exactly across the pause */
+function shiftTimestamps(delta) {
+    if (activePower && powerEndTime > 0) powerEndTime += delta;
+    if (invulnUntil > 0) invulnUntil += delta;
+
+    for (var i = 0; i < enemiesData.length; i++) {
+        var e = enemiesData[i];
+        if (e.defeatedAt !== 0) e.defeatedAt += delta;
+    }
+
+    if (bossData) {
+        var b = bossData;
+        if (b.telegraphEnd !== 0) b.telegraphEnd += delta;
+        if (b.chargeEnd !== 0) b.chargeEnd += delta;
+        if (b.nextAttackOk !== 0) b.nextAttackOk += delta;
+        if (b.staggerUntil !== 0) b.staggerUntil += delta;
+        if (b.hitFlashUntil !== 0) b.hitFlashUntil += delta;
+    }
+}
+
+/* Pause is only allowed during real gameplay, never over a
+   GAME OVER / LEVEL COMPLETE / YOU WIN overlay */
+function canPauseNow() {
+    if (messageEl.style.display === "flex") return false;
+    if (gameOver || gameWon || paused) return false;
+    return true;
+}
+
+function showPauseMenu() {
+    pauseMenuEl.classList.add("show");
+}
+
+function hidePauseMenu() {
+    pauseMenuEl.classList.remove("show");
+}
+
+/* on: pause the game, off: resume it from exactly where it froze */
+function setPaused(on) {
+    if (on === paused) return;
+
+    if (on) {
+        if (!canPauseNow()) return;
+        paused = true;
+        pausedStartMs = performance.now();
+        game.classList.add("paused");
+
+        /* Release held keys so nothing gets stuck while frozen */
+        keys.left = false;
+        keys.right = false;
+
+        /* Freeze the loop: no new frames get scheduled at all */
+        if (rafId !== null) {
+            cancelAnimationFrame(rafId);
+            rafId = null;
+        }
+
+        /* Suspend pending level-banner / death-hop timeouts so no
+           time is accidentally counted while paused */
+        suspendPausableTimers();
+
+        showPauseMenu();
+    } else {
+        /* Advance every gameplay timestamp by the paused time so
+           power-ups, invulnerability and the boss keep the exact
+           time they had when the pause started */
+        shiftTimestamps(performance.now() - pausedStartMs);
+
+        paused = false;
+        game.classList.remove("paused");
+        hidePauseMenu();
+
+        resumePausableTimers();
+
+        /* Restart the loop only for states that run gameplay;
+           "banner" and "dying" wait for their (re-armed) timer */
+        if (gameState === "playing") startLoop();
+    }
+}
+
+function togglePause() {
+    setPaused(!paused);
+}
+
+/* PAUSE button in the HUD and the pause menu buttons */
+pauseBtnEl.onclick = togglePause;
+resumeBtnEl.onclick = togglePause;
+restartBtnEl.onclick = restartGame;
 
 /* ===== GAME LOOP ===== */
 
@@ -1256,7 +1517,8 @@ function startLoop() {
 }
 
 function gameLoop() {
-    if (gameOver || gameWon) { rafId = null; return; }
+    /* No new frames run while paused or outside active gameplay */
+    if (paused || gameState !== "playing") { rafId = null; return; }
 
     /* Update moving platforms */
     for (var i = 0; i < movingPlatforms.length; i++) {
@@ -1371,6 +1633,9 @@ function gameLoop() {
             totalCoinsRun++;
             scoreEl.textContent = score;
             coinCountEl.textContent = coinCount;
+            flashScore();          /* Day 9: HUD feedback */
+            flashCoins();
+            spawnFloatingText("+50", c.x + COIN_SIZE / 2, c.y + COIN_SIZE + 4);
             sfxCoin();
         }
     }

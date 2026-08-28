@@ -22,14 +22,63 @@ body {
     width: 900px;
     background: linear-gradient(to bottom, #1a1a2e, #16213e);
     color: white;
-    padding: 12px 20px;
+    padding: 10px 14px;
     display: flex;
     justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    border-bottom: 3px solid #e52521;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+}
+
+.hud-stats {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.hud-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+/* One HUD cell: small grey label above a big bright value */
+.stat {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+    line-height: 1.15;
+    padding: 3px 12px;
+    border-radius: 9px;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.stat-label {
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: #9aa7c7;
+    font-weight: bold;
+}
+
+.stat-value {
     font-size: 20px;
     font-weight: bold;
     letter-spacing: 1px;
-    border-bottom: 3px solid #e52521;
+    color: #fff;
 }
+
+.stat-score { color: #ffd23f; text-shadow: 0 0 10px rgba(255, 210, 63, 0.35); }
+.stat-coins { color: #ffe27a; }
+.stat-lives { color: #ff6b6b; }
+.stat-level { color: #6fd3ff; text-shadow: 0 0 8px rgba(111, 211, 255, 0.4); }
+
+.coin-sep { color: #887f55; }
 
 #game {
     width: 900px;
@@ -458,20 +507,27 @@ body {
     text-align: center;
 }
 
-/* Power-Up HUD indicator */
+/* Power-Up HUD indicator (name/time line stacked over the timer bar) */
 #powerHud {
+    min-width: 140px;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.power-line {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
 }
 
 #powerName {
-    font-size: 14px;
-    padding: 3px 10px;
-    border-radius: 12px;
+    font-size: 13px;
+    padding: 2px 9px;
+    border-radius: 10px;
     background: #333;
     color: #888;
     letter-spacing: 1px;
+    white-space: nowrap;
 }
 
 #powerName.power-label-superjump {
@@ -486,12 +542,19 @@ body {
     box-shadow: 0 0 8px rgba(255, 152, 0, 0.6);
 }
 
+#powerTime {
+    font-size: 13px;
+    letter-spacing: 1px;
+    color: #bbb;
+    white-space: nowrap;
+}
+
 #powerTimerBarWrap {
     display: inline-block;
-    width: 90px;
-    height: 10px;
+    width: 100%;
+    height: 8px;
     background: #333;
-    border-radius: 5px;
+    border-radius: 4px;
     overflow: hidden;
 }
 
@@ -500,35 +563,50 @@ body {
     height: 100%;
     width: 0%;
     background: linear-gradient(to right, #2ecc71, #ff9800);
-    border-radius: 5px;
+    border-radius: 4px;
 }
 
-/* Sound toggle button in the HUD */
-#soundBtn {
-    background: #333;
+/* HUD action buttons: sound toggle + pause */
+.hud-btn {
+    background: #2a2a3e;
     color: #ffd23f;
-    border: 2px solid #555;
-    border-radius: 6px;
-    padding: 3px 12px;
-    font-size: 14px;
+    border: 2px solid #4a4a66;
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 13px;
     font-weight: bold;
     letter-spacing: 1px;
     cursor: pointer;
     white-space: nowrap;
-    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+    transition: background 0.2s ease, border-color 0.2s ease,
+                color 0.2s ease, transform 0.1s ease;
 }
 
-#soundBtn:hover {
-    background: #444;
+.hud-btn:hover {
+    background: #3a3a52;
     border-color: #ffd23f;
 }
 
-#soundBtn.off {
-    color: #888;
-    border-color: #666;
+.hud-btn:active {
+    transform: scale(0.95);
 }
 
-#soundBtn.off:hover {
+#pauseBtn {
+    background: #e52521;
+    border-color: #ff7b77;
+    color: #fff;
+}
+
+#pauseBtn:hover {
+    background: #ff4444;
+}
+
+.hud-btn.off {
+    color: #888;
+    border-color: #555;
+}
+
+.hud-btn.off:hover {
     border-color: #aaa;
 }
 
@@ -1025,4 +1103,137 @@ body {
 @keyframes popRise {
     from { transform: translateY(0);     opacity: 1; }
     to   { transform: translateY(-46px); opacity: 0; }
+}
+
+/* ============================================================
+   DAY 9: PAUSE MENU, SETTINGS & HUD POLISH
+   ============================================================ */
+
+/* ===== HUD feedback flashes ===== */
+
+/* Small pop when a value changes (score / coins) */
+.flash {
+    display: inline-block;
+    animation: statPop 0.45s ease-out;
+}
+
+@keyframes statPop {
+    0%   { transform: scale(1);   filter: brightness(1); }
+    30%  { transform: scale(1.4); filter: brightness(2); }
+    100% { transform: scale(1);   filter: brightness(1); }
+}
+
+/* Shake + red pulse when a life is lost */
+#livesStat.lost {
+    animation: livesShake 0.55s ease-out;
+}
+
+@keyframes livesShake {
+    0%, 100% { transform: translateX(0);    background: rgba(255, 255, 255, 0.07); }
+    25%      { transform: translateX(-6px); background: rgba(231, 37, 33, 0.45); }
+    50%      { transform: translateX(6px);  background: rgba(231, 37, 33, 0.35); }
+    75%      { transform: translateX(-3px); background: rgba(255, 255, 255, 0.07); }
+}
+
+/* While paused every CSS animation freezes too, so coins stop
+   bobbing, enemies stop waddling and the player stops blinking
+   behind the pause menu */
+#game.paused * {
+    animation-play-state: paused;
+}
+
+/* The pause menu itself keeps its fade-in while frozen */
+#game.paused #pauseMenu,
+#game.paused #pauseMenu * {
+    animation-play-state: running;
+}
+
+/* ===== Pause overlay ===== */
+
+#pauseMenu {
+    display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 110;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 16px;
+    background:
+        radial-gradient(circle at 50% 42%, rgba(64, 48, 128, 0.55), transparent 72%),
+        rgba(8, 6, 22, 0.78);
+}
+
+#pauseMenu.show {
+    display: flex;
+    animation: overlayFade 0.3s ease-out;
+}
+
+#pauseMenu h2 {
+    font-size: 52px;
+    color: #fff;
+    letter-spacing: 8px;
+    margin-bottom: 2px;
+    animation: pauseTitleGlow 1.8s ease-in-out infinite;
+}
+
+@keyframes pauseTitleGlow {
+    0%, 100% { text-shadow: 3px 3px 0 #000, 0 0 16px rgba(255, 210, 63, 0.4); }
+    50%      { text-shadow: 3px 3px 0 #000, 0 0 32px rgba(255, 210, 63, 0.85); }
+}
+
+.pause-hint {
+    color: #9aa7c7;
+    font-size: 15px;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+}
+
+.pause-menu-btn {
+    min-width: 250px;
+    padding: 14px 30px;
+    border: none;
+    border-radius: 12px;
+    font-size: 20px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    cursor: pointer;
+    color: #fff;
+    box-shadow: 0 5px 14px rgba(0, 0, 0, 0.45);
+    transition: transform 0.12s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+
+.pause-menu-btn:hover {
+    transform: scale(1.06);
+    filter: brightness(1.15);
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.55);
+}
+
+.pause-menu-btn:active {
+    transform: scale(0.97);
+}
+
+#resumeBtn {
+    background: linear-gradient(to bottom, #22c55e, #15803d);
+    border-bottom: 5px solid #0e5729;
+}
+
+#restartBtn {
+    background: linear-gradient(to bottom, #ff9d2e, #e07b00);
+    border-bottom: 5px solid #9c5700;
+}
+
+#pauseSoundBtn {
+    background: linear-gradient(to bottom, #3a3a56, #262638);
+    border: 2px solid #4a4a66;
+    border-bottom: 5px solid #16161f;
+    font-size: 16px;
+    min-width: 250px;
+}
+
+#pauseSoundBtn.off {
+    color: #a6a6b8;
 }
