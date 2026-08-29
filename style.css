@@ -74,9 +74,80 @@ body {
 }
 
 .stat-score { color: #ffd23f; text-shadow: 0 0 10px rgba(255, 210, 63, 0.35); }
+.stat-highscore { color: #ff9d2e; text-shadow: 0 0 10px rgba(255, 157, 46, 0.4); }
 .stat-coins { color: #ffe27a; }
 .stat-lives { color: #ff6b6b; }
 .stat-level { color: #6fd3ff; text-shadow: 0 0 8px rgba(111, 211, 255, 0.4); }
+.stat-bestlevel { color: #7cffb0; text-shadow: 0 0 8px rgba(124, 255, 176, 0.45); }
+
+/* ===== Day 10: record indicator tags (NEW RECORD / NEW BEST LEVEL) ===== */
+
+/* Small glowing tag that pops in the corner of a HUD cell. Hidden by
+   default; script.js adds the "show" class to animate it. */
+.record-tag {
+    display: none;
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    font-size: 9px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    padding: 2px 6px;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.75);
+    color: #ffd23f;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 2;
+}
+
+.record-tag.show {
+    display: inline-block;
+    animation: recordTagPop 2s ease forwards;
+}
+
+@keyframes recordTagPop {
+    0%   { opacity: 0; transform: translateY(6px) scale(0.8); }
+    15%  { opacity: 1; transform: translateY(0) scale(1.15); }
+    25%  { opacity: 1; transform: translateY(0) scale(1); }
+    80%  { opacity: 1; }
+    100% { opacity: 0; }
+}
+
+/* The HUD cells that can host a record tag need relative positioning */
+#highScoreStat,
+#levelStat,
+#bestLevelStat {
+    position: relative;
+}
+
+/* Golden glow while showing a NEW HIGH SCORE */
+#highScoreStat.new-high {
+    box-shadow: 0 0 16px rgba(255, 157, 46, 0.55);
+}
+
+/* Green glow while showing a NEW BEST LEVEL */
+#bestLevelStat.new-level {
+    box-shadow: 0 0 16px rgba(124, 255, 176, 0.55);
+}
+
+/* ===== Record notice on the game over / win overlay ===== */
+
+.record-notice {
+    display: none;
+    color: #ffd23f;
+    font-size: 20px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    margin-bottom: 16px;
+    text-shadow: 1px 1px 0 #000;
+    animation: recordBannerPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes recordBannerPulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.55; }
+}
 
 .coin-sep { color: #887f55; }
 
@@ -1236,4 +1307,20 @@ body {
 
 #pauseSoundBtn.off {
     color: #a6a6b8;
+}
+
+/* Day 10: reset records button - muted so it is not mistaken for
+   restart; only removes the saved high score / best level records */
+#resetRecordsBtn {
+    background: linear-gradient(to bottom, #6b2530, #4a1620);
+    border: 2px solid #8a3040;
+    border-bottom: 5px solid #2e0d14;
+    font-size: 14px;
+    min-width: 250px;
+    color: #ffc9cd;
+}
+
+#resetRecordsBtn:hover {
+    filter: brightness(1.2);
+    border-color: #ff8a96;
 }

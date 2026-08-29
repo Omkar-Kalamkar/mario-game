@@ -14,6 +14,11 @@
                     <span class="stat-label">SCORE</span>
                     <span class="stat-value stat-score" id="score">0</span>
                 </div>
+                <div class="stat" id="highScoreStat">
+                    <span class="stat-label">HIGH SCORE</span>
+                    <span class="stat-value stat-highscore" id="highScore">0</span>
+                    <span id="newRecordTag" class="record-tag">NEW RECORD!</span>
+                </div>
                 <div class="stat">
                     <span class="stat-label">COINS</span>
                     <span class="stat-value stat-coins"><span id="coinCount">0</span><span class="coin-sep">/</span><span id="coinTotal">0</span></span>
@@ -22,9 +27,14 @@
                     <span class="stat-label">LIVES</span>
                     <span class="stat-value stat-lives"><span id="livesNum">3</span><span id="livesHearts"></span></span>
                 </div>
-                <div class="stat">
+                <div class="stat" id="levelStat">
                     <span class="stat-label">LEVEL</span>
                     <span class="stat-value stat-level" id="levelNum">1</span>
+                    <span id="newLevelTag" class="record-tag">NEW BEST LEVEL!</span>
+                </div>
+                <div class="stat" id="bestLevelStat">
+                    <span class="stat-label">BEST LEVEL</span>
+                    <span class="stat-value stat-bestlevel" id="bestLevel">1</span>
                 </div>
             </div>
             <div class="hud-actions">
@@ -73,6 +83,7 @@
             <div id="message">
                 <h1 id="messageText">GAME OVER</h1>
                 <p id="messageInfo"></p>
+                <p id="recordNotice" class="record-notice"></p>
                 <button id="messageBtn">Restart</button>
             </div>
 
@@ -83,6 +94,7 @@
                 <button id="resumeBtn" class="pause-menu-btn resume-btn">RESUME</button>
                 <button id="restartBtn" class="pause-menu-btn restart-btn">RESTART</button>
                 <button id="pauseSoundBtn" class="pause-menu-btn sound-btn">🔊 SOUND ON</button>
+                <button id="resetRecordsBtn" class="pause-menu-btn reset-btn">♻ RESET RECORDS</button>
             </div>
         </div>
 

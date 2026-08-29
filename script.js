@@ -48,6 +48,17 @@ var resumeBtnEl = document.getElementById("resumeBtn");
 var restartBtnEl = document.getElementById("restartBtn");
 var pauseSoundBtnEl = document.getElementById("pauseSoundBtn");
 
+/* Day 10: persistent records + HUD elements */
+var highScoreEl = document.getElementById("highScore");
+var bestLevelEl = document.getElementById("bestLevel");
+var highScoreStatEl = document.getElementById("highScoreStat");
+var levelStatEl = document.getElementById("levelStat");
+var bestLevelStatEl = document.getElementById("bestLevelStat");
+var newRecordTagEl = document.getElementById("newRecordTag");
+var newLevelTagEl = document.getElementById("newLevelTag");
+var recordNoticeEl = document.getElementById("recordNotice");
+var resetRecordsBtnEl = document.getElementById("resetRecordsBtn");
+
 /* ===== SOUND SYSTEM (Web Audio API) ===== */
 
 var audioCtx = null;      /* created lazily on first user gesture */
@@ -267,6 +278,7 @@ function collectPowerUp(pu) {
     score += 100;
     scoreEl.textContent = score;
     flashScore();
+    updateHighScore();
 
     activePower = pu.type;
     powerEndTime = performance.now() +
@@ -330,9 +342,14 @@ var isOnGround = true;
 var gameOver = false;
 var gameWon = false;
 
-/* Day 9: explicit game state so the pause menu can only appear
+/*    Day 9: explicit game state so the pause menu can only appear
    during real gameplay. Values: "banner", "playing", "dying",
-   "levelcomplete", "gameover", "win". */
+   "levelcomplete", "gameover", "win".
+
+   Day 10: persistent high score and best level records. Scores
+   and level progress are saved to browser localStorage so they
+   survive restarts, game over, winning and closing the page.
+   ============================================================ */
 var gameState = "banner";
 var paused = false;       /* true while the pause menu is open */
 var pausedStartMs = 0;    /* timestamp when the current pause began */
@@ -342,6 +359,7 @@ var pausedStartMs = 0;    /* timestamp when the current pause began */
 var score = 0;
 var coinCount = 0;
 var totalCoinsRun = 0;
+var newHighAwarded = false;   /* Day 10: did this run beat the record? */
 
 var keys = { left: false, right: false };
 
@@ -714,6 +732,7 @@ function activateCheckpoint(ck) {
     score += CHECKPOINT_BONUS;
     scoreEl.textContent = score;
     flashScore();
+    updateHighScore();
     sfxCheckpoint();
 }
 
@@ -775,6 +794,7 @@ function defeatEnemy(e) {
     score += STOMP_SCORE;
     scoreEl.textContent = score;
     flashScore();
+    updateHighScore();
 
     velocityY = currentJumpPower() * STOMP_BOUNCE_FACTOR;
     isOnGround = false;
@@ -925,6 +945,7 @@ function hitBoss(b) {
     score += BOSS_HIT_SCORE;
     scoreEl.textContent = score;
     flashScore();
+    updateHighScore();
 
     /* Strong bounce so the player clears the boss after a hit */
     velocityY = BOSS_STOMP_BOUNCE;
@@ -955,6 +976,7 @@ function defeatBoss(b) {
     score += BOSS_DEFEAT_BONUS;
     scoreEl.textContent = score;
     flashScore();
+    updateHighScore();
 
     b.el.classList.remove("telegraph", "charging", "hit-flash");
     b.el.classList.add("defeated");
@@ -1043,14 +1065,22 @@ function showBanner(text) {
 }
 
 /* Shows the overlay. btnAction is stored as onclick (a property),
-   so clicking the button can never stack duplicate listeners. */
-function showMessage(text, infoText, btnLabel, btnAction, btnClass) {
+   so clicking the button can never stack duplicate listeners.
+   The optional recordText is shown under the info line (used for
+   "NEW HIGH SCORE!" on the game over / win screens). */
+function showMessage(text, infoText, btnLabel, btnAction, btnClass, recordText) {
     messageTextEl.textContent = text;
     if (infoText) {
         messageInfoEl.textContent = infoText;
         messageInfoEl.style.display = "block";
     } else {
         messageInfoEl.style.display = "none";
+    }
+    if (recordText) {
+        recordNoticeEl.textContent = recordText;
+        recordNoticeEl.style.display = "block";
+    } else {
+        recordNoticeEl.style.display = "none";
     }
     messageBtnEl.textContent = btnLabel;
     messageBtnEl.className = btnClass ? btnClass : "";
@@ -1134,6 +1164,10 @@ function loadLevel(index) {
     levelNumEl.textContent = index + 1;
     scoreEl.textContent = score;   /* score carries over between levels */
 
+    /* Day 10: reaching a new level updates the best-level record.
+       loadLevel(0) for level 1 never raises it (default is 1). */
+    updateBestLevel();
+
     /* Hide overlays and show the level banner */
     messageEl.style.display = "none";
     showBanner("LEVEL " + (index + 1) + " READY!");
@@ -1159,11 +1193,16 @@ function completeLevel() {
     if (currentLevelIndex === LEVELS.length - 1) {
         gameState = "win";
         sfxVictory();
+        renderRecords();
         showMessage(
             "YOU WIN!",
-            "Final score: " + score + "  |  Coins collected: " + totalCoinsRun,
+            "FINAL SCORE: " + score + "  |  HIGH SCORE: " + savedHighScore +
+                "  |  BEST LEVEL: " + LEVELS.length +
+                "  |  Coins collected: " + totalCoinsRun,
             "Restart Game",
-            restartGame
+            restartGame,
+            "",
+            newHighAwarded ? "NEW HIGH SCORE!" : ""
         );
     } else {
         gameState = "levelcomplete";
@@ -1212,11 +1251,16 @@ function killPlayer() {
         gameState = "gameover";
         isDying = false;
         sfxGameOver();
+        renderRecords();
         showMessage(
             "GAME OVER",
-            "Final score: " + score + "  |  Coins collected: " + totalCoinsRun,
+            "SCORE: " + score + "  |  HIGH SCORE: " + savedHighScore +
+                "  |  BEST LEVEL: " + savedBestLevel +
+                "  |  Coins collected: " + totalCoinsRun,
             "Restart Game",
-            restartGame
+            restartGame,
+            "",
+            newHighAwarded ? "NEW HIGH SCORE!" : ""
         );
         return;
     }
@@ -1290,6 +1334,7 @@ function restartGame() {
     totalCoinsRun = 0;
     lives = START_LIVES;
     isDying = false;
+    newHighAwarded = false;
     invulnUntil = 0;
 
     /* Close any pause menu and cancel every pending gameplay
@@ -1509,6 +1554,148 @@ pauseBtnEl.onclick = togglePause;
 resumeBtnEl.onclick = togglePause;
 restartBtnEl.onclick = restartGame;
 
+/* ============================================================
+   DAY 10: PERSISTENT RECORDS (HIGH SCORE + BEST LEVEL)
+
+   The only persistent data is the player's high score and best
+   level. Records are read from / written to localStorage under
+   clearly-namespaced keys so they never touch unrelated storage.
+
+   Every access is guarded with try/catch so the game keeps
+   working even when localStorage is unavailable (private
+   browsing, storage blocked, etc.). Stored values are always
+   validated before use so malformed data can never break the
+   game - bad or missing values fall back to sensible defaults.
+   ============================================================ */
+
+var HIGH_SCORE_KEY = "marioGameHighScore";
+var BEST_LEVEL_KEY = "marioGameBestLevel";
+
+/* Safely read a number from a localStorage key. Returns fallback
+   (default 0) if the key is missing, unreadable, or not a finite
+   non-negative number. */
+function readNumber(key, fallback) {
+    if (fallback === undefined) fallback = 0;
+    try {
+        var raw = window.localStorage.getItem(key);
+        if (raw === null) return fallback;
+        var n = Number(raw);
+        if (!isFinite(n) || n < 0) return fallback;
+        return Math.floor(n);
+    } catch (err) {
+        return fallback;
+    }
+}
+
+/* Safely write a number to a localStorage key. Swallows any error
+   (e.g. quota exceeded) so persistence failing never breaks play. */
+function writeNumber(key, value) {
+    try {
+        window.localStorage.setItem(key, String(value));
+    } catch (err) {
+        /* persistence unavailable: the game simply continues in-memory */
+    }
+}
+
+/* The persistent high score and best level held in memory. */
+var savedHighScore = 0;
+var savedBestLevel = 1;
+
+/* Load both records from localStorage and refresh the HUD. Called
+   once at startup, and again after a record reset. */
+function loadRecords() {
+    savedHighScore = readNumber(HIGH_SCORE_KEY, 0);
+    savedBestLevel = readNumber(BEST_LEVEL_KEY, 1);
+    if (savedBestLevel < 1) savedBestLevel = 1;
+    if (savedBestLevel > LEVELS.length) savedBestLevel = LEVELS.length;
+    renderRecords();
+}
+
+/* Write both records back to localStorage (only when they differ,
+   to avoid pointless writes). */
+function persistRecords() {
+    if (savedHighScore > readNumber(HIGH_SCORE_KEY, 0)) {
+        writeNumber(HIGH_SCORE_KEY, savedHighScore);
+    }
+    if (savedBestLevel > readNumber(BEST_LEVEL_KEY, 1)) {
+        writeNumber(BEST_LEVEL_KEY, savedBestLevel);
+    }
+}
+
+/* Refresh the HUD cells for high score and best level. */
+function renderRecords() {
+    highScoreEl.textContent = savedHighScore;
+    bestLevelEl.textContent = savedBestLevel;
+}
+
+/* Check whether the current run's score beats the saved high
+   score. If it does, update the high score immediately, save it,
+   refresh the HUD and play the "NEW RECORD!" animation. Called
+   after every scoring event. */
+function updateHighScore() {
+    if (score > savedHighScore) {
+        savedHighScore = score;
+        newHighAwarded = true;
+        persistRecords();
+        renderRecords();
+        highScoreStatEl.classList.add("new-high");
+        bumpFlash(newRecordTagEl, "show");
+        /* The HUD glow fades on its own after a moment */
+        setTimeout(function() {
+            highScoreStatEl.classList.remove("new-high");
+        }, 2000);
+    }
+}
+
+/* Record the highest level actually reached. Called when a new
+   level begins. Never lowers the best level and never records a
+   level the player has not actually started. */
+function updateBestLevel() {
+    var reached = currentLevelIndex + 1;   /* current level is 1-based */
+    if (reached > savedBestLevel) {
+        savedBestLevel = reached;
+        persistRecords();
+        renderRecords();
+        bestLevelStatEl.classList.add("new-level");
+        bumpFlash(newLevelTagEl, "show");
+        setTimeout(function() {
+            bestLevelStatEl.classList.remove("new-level");
+        }, 2000);
+    }
+}
+
+/* Clear the saved records (high score -> 0, best level -> 1)
+   after a confirmation. Only the records are removed; game code,
+   files and unrelated storage are untouched. On success the HUD
+   refreshes immediately. */
+function resetRecords() {
+    if (!window.confirm(
+        "Reset all saved records?\n\n" +
+        "This clears your HIGH SCORE and BEST LEVEL.\n" +
+        "Your current game is not affected."
+    )) {
+        return;   /* cancelled: don't touch anything */
+    }
+
+    savedHighScore = 0;
+    savedBestLevel = 1;
+    try {
+        window.localStorage.removeItem(HIGH_SCORE_KEY);
+        window.localStorage.removeItem(BEST_LEVEL_KEY);
+    } catch (err) {
+        /* storage unavailable: still reset the in-memory values */
+    }
+    renderRecords();
+    highScoreStatEl.classList.remove("new-high");
+    bestLevelStatEl.classList.remove("new-level");
+
+    /* Brief visual confirmation that the records were cleared */
+    bumpFlash(highScoreEl, "flash");
+    bumpFlash(bestLevelEl, "flash");
+}
+
+resetRecordsBtnEl.onclick = resetRecords;
+
 /* ===== GAME LOOP ===== */
 
 function startLoop() {
@@ -1635,6 +1822,7 @@ function gameLoop() {
             coinCountEl.textContent = coinCount;
             flashScore();          /* Day 9: HUD feedback */
             flashCoins();
+            updateHighScore();     /* Day 10: check for a new record */
             spawnFloatingText("+50", c.x + COIN_SIZE / 2, c.y + COIN_SIZE + 4);
             sfxCoin();
         }
@@ -1783,5 +1971,8 @@ function gameLoop() {
 
 /* ===== INIT ===== */
 
+/* Day 10: restore the saved high score and best level before the
+   HUD is drawn on the first level. */
+loadRecords();
 renderLives();
 loadLevel(0);
