@@ -151,6 +151,115 @@ body {
 
 .coin-sep { color: #887f55; }
 
+/* ============================================================
+   DAY 11: COMBO / STREAK SYSTEM
+   ============================================================ */
+
+/* Combo HUD cell */
+#comboStat {
+    min-width: 86px;
+    position: relative;
+}
+
+#comboValue {
+    color: #ff5bc8;
+    text-shadow: 0 0 10px rgba(255, 91, 200, 0.4);
+    transition: color 0.2s ease, text-shadow 0.2s ease;
+}
+
+/* Compact WIN: line with the time readout and a thin timer bar */
+.combo-line {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+
+#comboTime {
+    font-size: 11px;
+    letter-spacing: 1px;
+    color: #cfcfcf;
+    white-space: nowrap;
+}
+
+#comboTimerBarWrap {
+    display: inline-block;
+    width: 72px;
+    height: 6px;
+    background: #333;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+#comboTimerBar {
+    display: block;
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(to right, #ff9d2e, #ff5bc8);
+    border-radius: 3px;
+}
+
+/* Combo emphasis: at x5 or higher the value pops with a pulse */
+#comboValue.high {
+    color: #ffe95c;
+    text-shadow: 0 0 16px rgba(255, 233, 92, 0.9);
+    animation: comboPulse 0.6s ease-in-out infinite;
+}
+
+@keyframes comboPulse {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.18); }
+}
+
+/* Quick pop whenever the combo value changes */
+#comboValue.pop {
+    animation: comboPop 0.35s ease-out;
+}
+
+@keyframes comboPop {
+    0%   { transform: scale(1); }
+    35%  { transform: scale(1.5); }
+    100% { transform: scale(1); }
+}
+
+/* ===== Combo milestone popup (center of the game field) ===== */
+#comboMilestone {
+    position: absolute;
+    top: 34%;
+    left: 0;
+    width: 100%;
+    text-align: center;
+    z-index: 60;
+    font-size: 44px;
+    font-weight: bold;
+    letter-spacing: 4px;
+    color: #ffe95c;
+    text-shadow: 3px 3px 0 #000;
+    opacity: 0;
+    pointer-events: none;
+    visibility: hidden;
+}
+
+#comboMilestone.show {
+    visibility: visible;
+    animation: milestonePop 1.1s ease forwards;
+}
+
+@keyframes milestonePop {
+    0%   { opacity: 0; transform: translateY(14px) scale(0.7); }
+    20%  { opacity: 1; transform: translateY(0) scale(1.15); }
+    35%  { opacity: 1; transform: translateY(0) scale(1); }
+    80%  { opacity: 1; }
+    100% { opacity: 0; transform: translateY(-16px); }
+}
+
+/* Floating combo score text (green/gold, bolder than plain +N) */
+.score-pop.combo {
+    font-size: 22px;
+    color: #7cffb0;
+    text-shadow: 2px 2px 0 #000, 0 0 12px rgba(124, 255, 176, 0.55);
+}
+
 #game {
     width: 900px;
     height: 500px;

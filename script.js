@@ -59,6 +59,12 @@ var newLevelTagEl = document.getElementById("newLevelTag");
 var recordNoticeEl = document.getElementById("recordNotice");
 var resetRecordsBtnEl = document.getElementById("resetRecordsBtn");
 
+/* Day 11: combo HUD + milestone elements */
+var comboValueEl = document.getElementById("comboValue");
+var comboTimeEl = document.getElementById("comboTime");
+var comboTimerBar = document.getElementById("comboTimerBar");
+var comboMilestoneEl = document.getElementById("comboMilestone");
+
 /* ===== SOUND SYSTEM (Web Audio API) ===== */
 
 var audioCtx = null;      /* created lazily on first user gesture */
@@ -259,6 +265,18 @@ var SPEED_BOOST_MAX = 8;
 var SUPER_JUMP_DURATION = 8000;
 var SPEED_BOOST_DURATION = 7000;
 
+/* ===== COMBO / STREAK SYSTEM (Day 11) ===== */
+
+var COMBO_MAX = 10;               /* hard cap, never goes above this */
+var COMBO_WINDOW_MS = 2500;       /* time to chain the next action */
+var COMBO_BONUS_FACTOR = 0.5;     /* bonus = base * (combo-1) * factor */
+
+/* Current combo (combo value) and when the chain window expires.
+   combo always starts/resets to 1 and the window only ticks while
+   real gameplay is running (not paused / game over / won). */
+var combo = 1;
+var comboEndTime = 0;
+
 var activePower = null;   /* "superjump", "speedboost" or null */
 var powerEndTime = 0;     /* timestamp when the effect expires */
 
@@ -275,10 +293,8 @@ function currentMaxSpeed() {
 function collectPowerUp(pu) {
     pu.collected = true;
     pu.el.style.display = "none";
-    score += 100;
-    scoreEl.textContent = score;
-    flashScore();
-    updateHighScore();
+    /* Day 11: power-ups feed the combo too (each counts only once) */
+    awardComboScore(100, pu.x + POWERUP_SIZE / 2, pu.y + POWERUP_SIZE + 4);
 
     activePower = pu.type;
     powerEndTime = performance.now() +
@@ -791,10 +807,8 @@ function defeatEnemy(e) {
     e.defeatedAt = performance.now();
     e.el.classList.add("defeated");
 
-    score += STOMP_SCORE;
-    scoreEl.textContent = score;
-    flashScore();
-    updateHighScore();
+    /* Day 11: enemy stomp feeds the combo */
+    awardComboScore(STOMP_SCORE, e.x + ENEMY_W / 2, e.y + ENEMY_H + 4);
 
     velocityY = currentJumpPower() * STOMP_BOUNCE_FACTOR;
     isOnGround = false;
@@ -942,10 +956,8 @@ function hitBoss(b) {
     b.health--;
     updateBossHud();
 
-    score += BOSS_HIT_SCORE;
-    scoreEl.textContent = score;
-    flashScore();
-    updateHighScore();
+    /* Day 11: each boss hit feeds the combo (counted once per hit) */
+    awardComboScore(BOSS_HIT_SCORE, b.x + BOSS_W / 2, b.y + BOSS_H + 8);
 
     /* Strong bounce so the player clears the boss after a hit */
     velocityY = BOSS_STOMP_BOUNCE;
@@ -959,7 +971,7 @@ function hitBoss(b) {
     /* A successful stomp also buys the player attack-free time */
     b.nextAttackOk = now + BOSS_ATTACK_COOLDOWN_MS;
 
-    spawnBossHitFx(b.x + BOSS_W / 2, b.y + BOSS_H - 6, "+" + BOSS_HIT_SCORE);
+    spawnBossHitFx(b.x + BOSS_W / 2, b.y + BOSS_H - 6);
     sfxBossHit();
 
     if (b.health <= 0) {
@@ -973,10 +985,8 @@ function defeatBoss(b) {
     b.health = 0;
     updateBossHud();
 
-    score += BOSS_DEFEAT_BONUS;
-    scoreEl.textContent = score;
-    flashScore();
-    updateHighScore();
+    /* Day 11: a significant, combo-aware bonus for taking down the boss */
+    awardComboScore(BOSS_DEFEAT_BONUS, b.x + BOSS_W / 2, b.y + BOSS_H + 8);
 
     b.el.classList.remove("telegraph", "charging", "hit-flash");
     b.el.classList.add("defeated");
@@ -984,7 +994,7 @@ function defeatBoss(b) {
 
     bossHudEl.classList.add("boss-defeated");
     showBanner("BOSS DEFEATED!");
-    spawnBossHitFx(b.x + BOSS_W / 2, b.y + BOSS_H, "+" + BOSS_DEFEAT_BONUS);
+    spawnBossHitFx(b.x + BOSS_W / 2, b.y + BOSS_H);
     sfxBossDefeated();
 }
 
@@ -1010,7 +1020,7 @@ function spawnBossHitFx(cx, bottomY, text) {
     });
     entities.appendChild(burst);
 
-    spawnFloatingText(text, cx - 20, bottomY + 12);
+    if (text) spawnFloatingText(text, cx - 20, bottomY + 12);
 }
 
 /* ===== INPUT ===== */
@@ -1157,6 +1167,11 @@ function loadLevel(index) {
     powerEndTime = 0;
     updatePowerHud();
 
+    /* Day 11: the combo carries over between levels. Refresh its
+       window here so no time is silently lost during the transition. */
+    if (combo > 1) comboEndTime = performance.now() + COMBO_WINDOW_MS;
+    updateComboHud();
+
     /* Coins are per-level: reset the counter, show the new total */
     coinCount = 0;
     coinCountEl.textContent = "0";
@@ -1231,6 +1246,8 @@ function killPlayer() {
 
     /* Temporary power-ups wear off and movement stops */
     expirePowerUp();
+    /* Day 11: losing a life breaks the streak */
+    resetCombo();
     keys.left = false;
     keys.right = false;
     velocityY = 0;
@@ -1336,6 +1353,7 @@ function restartGame() {
     isDying = false;
     newHighAwarded = false;
     invulnUntil = 0;
+    resetCombo();   /* Day 11: a fresh restart starts a fresh streak */
 
     /* Close any pause menu and cancel every pending gameplay
        timer before rebuilding Level 1 */
@@ -1392,6 +1410,123 @@ function spawnFloatingText(text, cx, bottomY) {
     });
     entities.appendChild(pop);
     return pop;
+}
+
+/* ============================================================
+   DAY 11: COMBO / STREAK SYSTEM
+
+   Reward skilled play by chaining successful actions (coin,
+   enemy stomp, boss hit, power-up). Getting another successful
+   action inside COMBO_WINDOW_MS raises the combo (up to
+   COMBO_MAX). The combo multiplies the points awarded by each
+   action as a bonus, so the base scores stay untouched but the
+   total grows as the streak grows.
+
+   Combo callbacks that everyone above calls:
+     increaseCombo()   raise the combo + reset the timer
+     awardComboScore() add base + combo bonus, show floating text
+   ============================================================ */
+
+/* Bonus points for an action worth "base" points. Uses the
+   CURRENT combo (so it scales after increaseCombo() nudges it).
+   At combo 1 there is no bonus; each extra combo step adds
+   base * 0.5 points for an easy to understand, fair progression. */
+function comboBonusFor(base) {
+    return Math.round(base * (combo - 1) * COMBO_BONUS_FACTOR);
+}
+
+/* Refresh the combo HUD (value, timer, emphasis) */
+function updateComboHud() {
+    comboValueEl.textContent = "x" + combo;
+    comboValueEl.classList.toggle("high", combo >= 5);
+    bumpFlash(comboValueEl, "pop");
+    /* The timer readout/bar are refreshed each frame by
+       updateComboTimer() and cleared by resetCombo(). */
+}
+
+/* Raise the combo by one (up to the cap) and restart its timer.
+   Also fires milestone feedback when a special combo is reached. */
+function increaseCombo() {
+    if (combo < COMBO_MAX) combo++;
+    comboEndTime = performance.now() + COMBO_WINDOW_MS;
+    updateComboHud();
+    checkComboMilestone();
+    if (combo > 1 && soundEnabled) {
+        playTone("triangle", 700 + combo * 60, 0.06, 0.12);
+    }
+}
+
+/* Bring the combo back to x1 and stop its timer */
+function resetCombo() {
+    combo = 1;
+    comboEndTime = 0;
+    comboValueEl.classList.remove("high");
+    comboTimeEl.textContent = "TIME: --";
+    comboTimerBar.style.width = "0%";
+    comboValueEl.textContent = "x1";
+    hideComboMilestone();
+}
+
+/* Called every frame while playing: count the combo window down
+   and reset the streak if the player was too slow */
+function updateComboTimer() {
+    if (combo <= 1) {
+        return;
+    }
+    var remaining = comboEndTime - performance.now();
+    if (remaining <= 0) {
+        resetCombo();
+        return;
+    }
+    comboTimeEl.textContent = "TIME: " + (remaining / 1000).toFixed(1) + "s";
+    comboTimerBar.style.width =
+        Math.ceil((remaining / COMBO_WINDOW_MS) * 100) + "%";
+}
+
+/* Milestone feedback at x3 / x5 / x10. Non-blocking: it just
+   flashes a word and plays a tone, gameplay keeps running. */
+function checkComboMilestone() {
+    var text = null;
+    if (combo >= 10) { text = "COMBO MASTER!"; }
+    else if (combo === 5) { text = "GREAT!"; }
+    else if (combo === 3) { text = "NICE!"; }
+
+    if (text) {
+        comboMilestoneEl.textContent = text;
+        bumpFlash(comboMilestoneEl, "show");
+        if (soundEnabled) {
+            playTone("square", 880, 0.12, 0.2, 1320);
+            setTimeout(function() { playTone("square", 1100, 0.15, 0.2, 1650); }, 90);
+        }
+    }
+}
+
+function hideComboMilestone() {
+    comboMilestoneEl.classList.remove("show");
+}
+
+/* Floating score text that shows the total (base + combo bonus)
+   and annotates it with "COMBO!" whenever a bonus was granted */
+function showFloatingScore(total, bonus, cx, bottomY) {
+    var label = "+" + total;
+    if (bonus > 0) label += " COMBO!";
+    var pop = spawnFloatingText(label, cx, bottomY);
+    if (bonus > 0) pop.classList.add("combo");
+    return pop;
+}
+
+/* The single scoring entry point for combo-eligible actions.
+   Adds the base score plus the growing combo bonus, bumps the
+   combo, refreshes the HUD and shows a floating score. */
+function awardComboScore(base, cx, bottomY) {
+    increaseCombo();
+    var bonus = comboBonusFor(base);
+    var total = base + bonus;
+    score += total;
+    scoreEl.textContent = score;
+    flashScore();
+    updateHighScore();
+    return showFloatingScore(total, bonus, cx, bottomY);
 }
 
 /* ============================================================
@@ -1470,6 +1605,7 @@ function resumePausableTimers() {
 function shiftTimestamps(delta) {
     if (activePower && powerEndTime > 0) powerEndTime += delta;
     if (invulnUntil > 0) invulnUntil += delta;
+    if (comboEndTime > 0) comboEndTime += delta;   /* Day 11: pause-free combo timer */
 
     for (var i = 0; i < enemiesData.length; i++) {
         var e = enemiesData[i];
@@ -1815,15 +1951,13 @@ function gameLoop() {
             playerY + PLAYER_H > c.y && playerY < c.y + COIN_SIZE) {
             c.collected = true;
             c.el.style.display = "none";
-            score += 50;
             coinCount++;
             totalCoinsRun++;
-            scoreEl.textContent = score;
             coinCountEl.textContent = coinCount;
-            flashScore();          /* Day 9: HUD feedback */
             flashCoins();
-            updateHighScore();     /* Day 10: check for a new record */
-            spawnFloatingText("+50", c.x + COIN_SIZE / 2, c.y + COIN_SIZE + 4);
+            /* Day 11: coin feeds the combo (scored once thanks to
+               the collected flag above) */
+            awardComboScore(50, c.x + COIN_SIZE / 2, c.y + COIN_SIZE + 4);
             sfxCoin();
         }
     }
@@ -1865,6 +1999,10 @@ function gameLoop() {
         expirePowerUp();
     }
     updatePowerHud();
+
+    /* Day 11: count down the combo window every frame; if it runs
+       out the streak resets to x1 */
+    updateComboTimer();
 
     /* Post-respawn invulnerability: blink while it lasts */
     var invulnerable = performance.now() < invulnUntil;

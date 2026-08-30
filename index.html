@@ -36,6 +36,14 @@
                     <span class="stat-label">BEST LEVEL</span>
                     <span class="stat-value stat-bestlevel" id="bestLevel">1</span>
                 </div>
+                <div class="stat" id="comboStat">
+                    <span class="stat-label">COMBO</span>
+                    <span class="stat-value stat-combo" id="comboValue">x1</span>
+                    <span class="combo-line">
+                        <span id="comboTime">TIME: --</span>
+                        <span id="comboTimerBarWrap"><span id="comboTimerBar"></span></span>
+                    </span>
+                </div>
             </div>
             <div class="hud-actions">
                 <div id="powerHud" class="stat power-hud">
@@ -79,6 +87,9 @@
 
             <!-- Short "LEVEL X" banner shown when a level starts -->
             <div id="levelBanner"></div>
+
+            <!-- Day 11: brief combo milestone popup ("NICE!", "GREAT!", ...) -->
+            <div id="comboMilestone"></div>
 
             <div id="message">
                 <h1 id="messageText">GAME OVER</h1>
