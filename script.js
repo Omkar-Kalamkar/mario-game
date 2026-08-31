@@ -65,6 +65,11 @@ var comboTimeEl = document.getElementById("comboTime");
 var comboTimerBar = document.getElementById("comboTimerBar");
 var comboMilestoneEl = document.getElementById("comboMilestone");
 
+/* Day 12: shield HUD element */
+var shieldValueEl = document.getElementById("shieldValue");
+var doubleJumpValueEl = document.getElementById("doubleJumpValue");
+var doubleJumpTimeEl = document.getElementById("doubleJumpTime");
+
 /* ===== SOUND SYSTEM (Web Audio API) ===== */
 
 var audioCtx = null;      /* created lazily on first user gesture */
@@ -202,6 +207,33 @@ function sfxVictory() {
     }
 }
 
+/* --- Day 12: new sound effects --- */
+
+function sfxShieldCollect() {
+    playTone("sine", 440, 0.1, 0.2, 880);
+    setTimeout(function() { playTone("sine", 880, 0.15, 0.25, 1320); }, 80);
+}
+
+function sfxShieldBlock() {
+    playNoise(0.1, 0.2);
+    playTone("triangle", 300, 0.15, 0.25, 150);
+}
+
+function sfxShieldBreak() {
+    playNoise(0.15, 0.25);
+    playTone("square", 200, 0.2, 0.2, 80);
+}
+
+function sfxDoubleJumpCollect() {
+    playTone("sine", 523, 0.08, 0.2);
+    setTimeout(function() { playTone("sine", 784, 0.08, 0.2); }, 60);
+    setTimeout(function() { playTone("sine", 1047, 0.15, 0.25); }, 120);
+}
+
+function sfxDoubleJumpActivate() {
+    playTone("square", 400, 0.1, 0.15, 800);
+}
+
 /* --- Sound toggle (HUD button + pause menu share one handler).
    onclicks are used instead of addEventListener so a button can
    never collect duplicate listeners. --- */
@@ -265,6 +297,13 @@ var SPEED_BOOST_MAX = 8;
 var SUPER_JUMP_DURATION = 8000;
 var SPEED_BOOST_DURATION = 7000;
 
+/* Day 12: Shield and Double Jump constants */
+var DOUBLE_JUMP_DURATION = 10000;      /* 10 seconds */
+var DOUBLE_JUMP_POWER_RATIO = 0.75;    /* second jump is 75% of first */
+var SHIELD_BONUS_SCORE = 150;          /* points for collecting a shield */
+var DOUBLE_JUMP_BONUS_SCORE = 150;     /* points for collecting double jump */
+var SHIELD_KNOCKBACK = 6;              /* horizontal knockback when shield absorbs hit */
+
 /* ===== COMBO / STREAK SYSTEM (Day 11) ===== */
 
 var COMBO_MAX = 10;               /* hard cap, never goes above this */
@@ -277,8 +316,12 @@ var COMBO_BONUS_FACTOR = 0.5;     /* bonus = base * (combo-1) * factor */
 var combo = 1;
 var comboEndTime = 0;
 
-var activePower = null;   /* "superjump", "speedboost" or null */
+var activePower = null;   /* "superjump", "speedboost", "doublejump" or null */
 var powerEndTime = 0;     /* timestamp when the effect expires */
+
+/* Day 12: shield and double-jump state */
+var shieldActive = false;       /* player has a shield that absorbs one hit */
+var doubleJumpUsed = false;     /* has the second jump been used since landing */
 
 function currentJumpPower() {
     if (activePower === "superjump") return SUPER_JUMP_POWER;
@@ -293,22 +336,62 @@ function currentMaxSpeed() {
 function collectPowerUp(pu) {
     pu.collected = true;
     pu.el.style.display = "none";
+
+    /* Shield is instant-use and not part of the timed power-up system */
+    if (pu.type === "shield") {
+        if (!shieldActive) {
+            activateShield();
+            awardComboScore(SHIELD_BONUS_SCORE, pu.x + POWERUP_SIZE / 2, pu.y + POWERUP_SIZE + 4);
+            sfxShieldCollect();
+        } else {
+            /* Already shielded: small bonus but no stacking */
+            awardComboScore(50, pu.x + POWERUP_SIZE / 2, pu.y + POWERUP_SIZE + 4);
+            sfxCoin();
+        }
+        return;
+    }
+
+    /* Double jump refresh: if already active, just restart the timer */
+    if (pu.type === "doublejump" && activePower === "doublejump") {
+        powerEndTime = performance.now() + DOUBLE_JUMP_DURATION;
+        doubleJumpUsed = false;
+        awardComboScore(50, pu.x + POWERUP_SIZE / 2, pu.y + POWERUP_SIZE + 4);
+        sfxPowerUp();
+        updatePowerHud();
+        return;
+    }
+
+    /* Standard timed power-up collection */
     /* Day 11: power-ups feed the combo too (each counts only once) */
-    awardComboScore(100, pu.x + POWERUP_SIZE / 2, pu.y + POWERUP_SIZE + 4);
+    var bonus = pu.type === "doublejump" ? DOUBLE_JUMP_BONUS_SCORE : 100;
+    awardComboScore(bonus, pu.x + POWERUP_SIZE / 2, pu.y + POWERUP_SIZE + 4);
+
+    if (pu.type === "doublejump") {
+        activateDoubleJump();
+        sfxDoubleJumpCollect();
+        return;
+    }
 
     activePower = pu.type;
-    powerEndTime = performance.now() +
-        (pu.type === "superjump" ? SUPER_JUMP_DURATION : SPEED_BOOST_DURATION);
+    var duration = pu.type === "superjump" ? SUPER_JUMP_DURATION :
+                   SPEED_BOOST_DURATION;
+    powerEndTime = performance.now() + duration;
 
-    player.classList.remove("power-superjump", "power-speedboost");
-    player.classList.add(pu.type === "superjump" ? "power-superjump" : "power-speedboost");
+    player.classList.remove("power-superjump", "power-speedboost", "power-doublejump");
+    if (pu.type === "superjump") player.classList.add("power-superjump");
+    else player.classList.add("power-speedboost");
+
+    doubleJumpUsed = false;
     sfxPowerUp();
 }
 
 function expirePowerUp() {
     activePower = null;
     powerEndTime = 0;
-    player.classList.remove("power-superjump", "power-speedboost");
+    player.classList.remove("power-superjump", "power-speedboost", "power-doublejump");
+    /* Double jump ability gone: fail the flag so no second jump */
+    doubleJumpUsed = true;
+    updateDoubleJumpHud();
 }
 
 function updatePowerHud() {
@@ -320,19 +403,131 @@ function updatePowerHud() {
         return;
     }
 
-    var total = activePower === "superjump" ? SUPER_JUMP_DURATION : SPEED_BOOST_DURATION;
+    var total = activePower === "superjump" ? SUPER_JUMP_DURATION :
+                activePower === "speedboost" ? SPEED_BOOST_DURATION :
+                DOUBLE_JUMP_DURATION;
     var remaining = powerEndTime - performance.now();
     if (remaining < 0) remaining = 0;
 
     /* Smooth one-decimal timer, refreshed every frame */
     var secondsLeft = (remaining / 1000).toFixed(1);
 
-    powerNameEl.textContent =
-        activePower === "superjump" ? "SUPER JUMP" : "SPEED BOOST";
-    powerNameEl.className = activePower === "superjump"
-        ? "power-label-superjump" : "power-label-speedboost";
+    var nameMap = {
+        "superjump": "SUPER JUMP",
+        "speedboost": "SPEED BOOST",
+        "doublejump": "DOUBLE JUMP"
+    };
+    var classMap = {
+        "superjump": "power-label-superjump",
+        "speedboost": "power-label-speedboost",
+        "doublejump": "power-label-doublejump"
+    };
+    powerNameEl.textContent = nameMap[activePower];
+    powerNameEl.className = classMap[activePower];
     powerTimeEl.textContent = "TIME: " + secondsLeft + "s";
     powerTimerBar.style.width = Math.ceil((remaining / total) * 100) + "%";
+}
+
+/* ===== Day 12: Shield system ===== */
+
+/* Refresh the Shield HUD cell */
+function updateShieldHud() {
+    shieldValueEl.textContent = shieldActive ? "ACTIVE" : "NONE";
+    shieldValueEl.classList.toggle("active", shieldActive);
+}
+
+/* Refresh the Double Jump HUD cell (status + remaining time) */
+function updateDoubleJumpHud() {
+    if (activePower === "doublejump") {
+        var remaining = powerEndTime - performance.now();
+        if (remaining < 0) remaining = 0;
+        doubleJumpValueEl.textContent = "ACTIVE";
+        doubleJumpValueEl.classList.add("active");
+        doubleJumpTimeEl.textContent = "TIME: " + (remaining / 1000).toFixed(1) + "s";
+    } else {
+        doubleJumpValueEl.textContent = "OFF";
+        doubleJumpValueEl.classList.remove("active");
+        doubleJumpTimeEl.textContent = "";
+    }
+}
+
+/* Clear both temporary (non-persistent) power-up states: the
+   shield and the double jump ability, plus their visuals. Used on
+   death, respawn, level transitions and restart. */
+function resetTemporaryPowerUps() {
+    shieldActive = false;
+    player.classList.remove("shielded");
+    updateShieldHud();
+    expirePowerUp();
+    doubleJumpUsed = true;
+    updateDoubleJumpHud();
+}
+
+/* Give the player a shield (used on collection and on respawn reset) */
+function activateShield() {
+    shieldActive = true;
+    player.classList.add("shielded");
+    updateShieldHud();
+}
+
+/* Consume the shield after it absorbs a hit: remove it, play the
+   break effect, knock the player back */
+function consumeShield(fromX, knockDir) {
+    shieldActive = false;
+    player.classList.remove("shielded");
+    updateShieldHud();
+    spawnShieldBreakFx(playerX + PLAYER_W / 2, playerY + PLAYER_H / 2);
+
+    /* Small knockback away from the thing that hit the player:
+       a little bounce even when on the ground, plus a horizontal push
+       while airborne */
+    if (isOnGround) {
+        velocityY = 4;
+    } else {
+        playerVX = (knockDir || 1) * SHIELD_KNOCKBACK;
+        velocityY = 3;
+    }
+    sfxShieldBlock();
+    sfxShieldBreak();
+    spawnFloatingText("SHIELD!", playerX + PLAYER_W / 2, playerY + PLAYER_H + 8);
+}
+
+/* Small expanding ring where the shield broke */
+function spawnShieldBreakFx(cx, bottomY) {
+    var fx = document.createElement("div");
+    fx.className = "shield-break-fx";
+    fx.style.left = (cx - 25) + "px";
+    fx.style.bottom = (bottomY - 25) + "px";
+    fx.addEventListener("animationend", function() {
+        if (fx.parentNode) fx.parentNode.removeChild(fx);
+    });
+    entities.appendChild(fx);
+}
+
+/* ===== Day 12: Double Jump system ===== */
+
+/* Activate the double jump ability for its timed duration */
+function activateDoubleJump() {
+    activePower = "doublejump";
+    powerEndTime = performance.now() + DOUBLE_JUMP_DURATION;
+    doubleJumpUsed = false;
+    player.classList.remove("power-superjump", "power-speedboost");
+    player.classList.add("power-doublejump");
+    updatePowerHud();
+    updateDoubleJumpHud();
+    sfxDoubleJumpActivate();
+}
+
+/* Small burst at the player's feet when the second jump happens */
+function spawnDoubleJumpFx(cx, bottomY) {
+    var fx = document.createElement("div");
+    fx.className = "double-jump-fx";
+    fx.style.left = (cx - 13) + "px";
+    fx.style.bottom = bottomY + "px";
+    fx.addEventListener("animationend", function() {
+        if (fx.parentNode) fx.parentNode.removeChild(fx);
+    });
+    entities.appendChild(fx);
 }
 
 /* ===== LIVES DISPLAY ===== */
@@ -475,7 +670,9 @@ var LEVELS = [
             { x: 85,  y: 265 }
         ],
         powerUps: [
+            { x: 150, y: 62, type: "shield" },
             { x: 760, y: 182, type: "superjump" },
+            { x: 210, y: 152, type: "doublejump" },
             { x: 530, y: 235, type: "speedboost" }
         ],
         enemies: [
@@ -522,6 +719,8 @@ var LEVELS = [
         ],
         powerUps: [
             { x: 105, y: 168, type: "speedboost" },
+            { x: 390, y: 217, type: "shield" },
+            { x: 520, y: 287, type: "doublejump" },
             { x: 790, y: 290, type: "superjump" }
         ],
         enemies: [
@@ -596,6 +795,8 @@ var LEVELS = [
         ],
         powerUps: [
             { x: 410, y: 336, type: "superjump" },
+            { x: 625, y: 275, type: "shield" },
+            { x: 450, y: 305, type: "doublejump" },
             { x: 662, y: 158, type: "speedboost" }
         ],
         enemies: [
@@ -696,7 +897,10 @@ function buildLevel(def) {
     /* Power-ups */
     for (i = 0; i < def.powerUps.length; i++) {
         var pud = def.powerUps[i];
-        var puClass = pud.type === "superjump" ? "super-jump" : "speed-boost";
+        var puClass = pud.type === "superjump" ? "super-jump"
+                    : pud.type === "speedboost" ? "speed-boost"
+                    : pud.type === "shield" ? "shield"
+                    : "doublejump";
         var puel = makeEntity("powerup " + puClass, pud.x, pud.y);
         powerUpsData.push({
             x: pud.x, y: pud.y, type: pud.type,
@@ -1056,10 +1260,20 @@ document.addEventListener("keyup", function(e) {
 /* ===== JUMP ===== */
 
 function doJump() {
-    if (isOnGround && !gameOver && !gameWon && !isDying && !paused) {
+    if (gameOver || gameWon || isDying || paused) return;
+
+    if (isOnGround) {
+        /* Ground jump: normal power (super jump when that power is active) */
         velocityY = currentJumpPower();
         isOnGround = false;
         onMovingPlatform = null;
+        doubleJumpUsed = false;   /* freshly airborne: second jump available */
+        sfxJump();
+    } else if (activePower === "doublejump" && !doubleJumpUsed) {
+        /* Airborne second jump, only while double jump is active */
+        velocityY = currentJumpPower() * DOUBLE_JUMP_POWER_RATIO;
+        doubleJumpUsed = true;
+        spawnDoubleJumpFx(playerX + PLAYER_W / 2, playerY);
         sfxJump();
     }
 }
@@ -1160,11 +1374,11 @@ function loadLevel(index) {
     player.style.bottom = playerY + "px";
     player.style.transform = "";
     player.classList.remove("airborne", "power-superjump",
-                            "power-speedboost", "invulnerable", "dying");
+                            "power-speedboost", "power-doublejump",
+                            "shielded", "invulnerable", "dying");
 
-    /* Reset power-up state and timers */
-    activePower = null;
-    powerEndTime = 0;
+    /* Reset temporary power-up state and timers (shield + double jump) */
+    resetTemporaryPowerUps();
     updatePowerHud();
 
     /* Day 11: the combo carries over between levels. Refresh its
@@ -1245,7 +1459,7 @@ function killPlayer() {
     flashLives();   /* Day 9: HUD feedback for the lost life */
 
     /* Temporary power-ups wear off and movement stops */
-    expirePowerUp();
+    resetTemporaryPowerUps();
     /* Day 11: losing a life breaks the streak */
     resetCombo();
     keys.left = false;
@@ -1303,6 +1517,10 @@ function respawnPlayer() {
     onMovingPlatform = null;
     keys.left = false;
     keys.right = false;
+
+    /* Day 12: shield and double jump are temporary and don't survive
+       death; the checkpoint itself stays active (Day 6) */
+    resetTemporaryPowerUps();
 
     /* Send surviving enemies back home so nothing can occupy the
        spawn point; defeated enemies stay defeated */
@@ -1927,6 +2145,8 @@ function gameLoop() {
             playerY = bestTop;
             velocityY = 0;
             isOnGround = true;
+            /* Day 12: landing re-arms the double jump for next time */
+            doubleJumpUsed = false;
         }
     }
 
@@ -1999,6 +2219,8 @@ function gameLoop() {
         expirePowerUp();
     }
     updatePowerHud();
+    updateShieldHud();
+    updateDoubleJumpHud();
 
     /* Day 11: count down the combo window every frame; if it runs
        out the streak resets to x1 */
@@ -2026,6 +2248,14 @@ function gameLoop() {
            Using prevY makes this work even when falling very fast. */
         if (velocityY < 0 && prevY >= enemyTop - 4) {
             defeatEnemy(e);
+        } else if (shieldActive) {
+            /* Day 12: a shield absorbs one side hit and pushes the
+               player clear so they do not immediately take a second hit */
+            var dir = playerX < e.x ? -1 : 1;
+            if (dir < 0) playerX = e.x - PLAYER_W;
+            else playerX = e.x + ENEMY_W;
+            consumeShield(e.x, dir);
+            return;
         } else if (!invulnerable) {
             killPlayer();
             return;
@@ -2047,6 +2277,14 @@ function gameLoop() {
             var bossTop = bd.y + BOSS_H;
             if (velocityY < 0 && prevY >= bossTop - 6) {
                 hitBoss(bd);          /* clean stomp from above */
+            } else if (shieldActive) {
+                /* Day 12: a shield absorbs one boss contact; push the
+                   player clear of the boss so they don't catch a second hit */
+                var bdir = playerX < bd.x ? -1 : 1;
+                if (bdir < 0) playerX = bd.x - PLAYER_W;
+                else playerX = bd.x + BOSS_W;
+                consumeShield(bd.x, bdir);
+                return;
             } else if (!invulnerable) {
                 killPlayer();         /* side or bottom touch */
                 return;

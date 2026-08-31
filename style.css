@@ -1433,3 +1433,143 @@ body {
     filter: brightness(1.2);
     border-color: #ff8a96;
 }
+
+/* ============================================================
+   DAY 12: SHIELD & DOUBLE JUMP POWER-UPS
+   ============================================================ */
+
+/* ===== Shield HUD stat ===== */
+.stat-shield { color: #888; text-shadow: none; transition: color 0.3s ease, text-shadow 0.3s ease; }
+.stat-shield.active { color: #4dd0e1; text-shadow: 0 0 12px rgba(77, 208, 225, 0.8); }
+
+/* ===== Double Jump HUD stat ===== */
+.stat-doublejump { color: #888; text-shadow: none; transition: color 0.3s ease, text-shadow 0.3s ease; }
+.stat-doublejump.active { color: #c9a5ff; text-shadow: 0 0 12px rgba(156, 105, 255, 0.8); }
+
+#doubleJumpStat { min-width: 96px; }
+.dj-time-wrap { display: block; line-height: 1.1; }
+#doubleJumpTime {
+    font-size: 11px;
+    letter-spacing: 1px;
+    color: #c9a5ff;
+    white-space: nowrap;
+}
+
+/* ===== Shield power-up item: hexagonal gem ===== */
+.powerup.shield {
+    background: radial-gradient(circle at 35% 30%, #4dd0e1, #0097a7, #004d57);
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+    animation: powerBob 1.6s ease-in-out infinite, shieldGlow 1.6s ease-in-out infinite;
+}
+
+@keyframes shieldGlow {
+    0%, 100% { filter: drop-shadow(0 0 4px rgba(77, 208, 225, 0.5)); }
+    50%      { filter: drop-shadow(0 0 14px rgba(77, 208, 225, 1)); }
+}
+
+/* ===== Double Jump power-up item: double upward arrows ===== */
+.powerup.doublejump {
+    background: radial-gradient(circle at 35% 30%, #c9a5ff, #9c69ff, #5b2cb0);
+    border: 2px solid #7b4cc6;
+    border-radius: 10px;
+    animation: powerBob 1.6s ease-in-out infinite, djPowGlow 1.6s ease-in-out infinite;
+}
+
+/* Upper arrow */
+.powerup.doublejump::before {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 7px solid transparent;
+    border-right: 7px solid transparent;
+    border-bottom: 9px solid white;
+}
+
+/* Lower arrow (slightly transparent) */
+.powerup.doublejump::after {
+    content: "";
+    position: absolute;
+    bottom: 3px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 7px solid transparent;
+    border-right: 7px solid transparent;
+    border-bottom: 9px solid rgba(255, 255, 255, 0.55);
+}
+
+@keyframes djPowGlow {
+    0%, 100% { filter: drop-shadow(0 0 4px rgba(156, 105, 255, 0.5)); }
+    50%      { filter: drop-shadow(0 0 14px rgba(156, 105, 255, 1)); }
+}
+
+/* ===== Player aura while shielded ===== */
+#player.shielded {
+    box-shadow: 0 0 18px 6px rgba(77, 208, 225, 0.85);
+    border: 2px solid #4dd0e1;
+    animation: shieldPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes shieldPulse {
+    0%, 100% { box-shadow: 0 0 18px 6px rgba(77, 208, 225, 0.85); }
+    50%      { box-shadow: 0 0 26px 10px rgba(77, 208, 225, 1); }
+}
+
+/* ===== Player aura while double jump is active ===== */
+#player.power-doublejump {
+    box-shadow: 0 0 16px 5px rgba(156, 105, 255, 0.9);
+    border: 2px solid #9c69ff;
+}
+
+/* ===== Shield-break effect (ring that expands and vanishes) ===== */
+.shield-break-fx {
+    position: absolute;
+    width: 50px;
+    height: 50px;
+    border: 3px solid #4dd0e1;
+    border-radius: 50%;
+    z-index: 30;
+    pointer-events: none;
+    animation: shieldBreak 0.45s ease-out forwards;
+}
+
+@keyframes shieldBreak {
+    0%   { transform: scale(1);   opacity: 1;   border-style: solid; }
+    40%  { transform: scale(1.6); opacity: 0.9; border-style: dashed; }
+    100% { transform: scale(2.2); opacity: 0;   border-style: dashed; }
+}
+
+/* ===== Second-jump burst effect ===== */
+.double-jump-fx {
+    position: absolute;
+    width: 26px;
+    height: 14px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(156, 105, 255, 0.9), transparent 70%);
+    z-index: 9;
+    pointer-events: none;
+    animation: djBurst 0.35s ease-out forwards;
+}
+
+@keyframes djBurst {
+    0%   { transform: scale(1);   opacity: 1; }
+    100% { transform: scale(2.8); opacity: 0; }
+}
+
+/* ===== Power-up label colours for the new types ===== */
+#powerName.power-label-doublejump {
+    background: rgba(156, 105, 255, 0.25);
+    color: #c9a5ff;
+    box-shadow: 0 0 8px rgba(156, 105, 255, 0.6);
+}
+
+#powerName.power-label-shield {
+    background: rgba(77, 208, 225, 0.25);
+    color: #4dd0e1;
+    box-shadow: 0 0 8px rgba(77, 208, 225, 0.6);
+}
