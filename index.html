@@ -62,6 +62,7 @@
                     </span>
                     <span id="powerTimerBarWrap"><span id="powerTimerBar"></span></span>
                 </div>
+                <button id="achievHudBtn" class="hud-btn" title="Achievements">🏆 <span id="achievHudCount">0/12</span></button>
                 <button id="soundBtn" class="hud-btn" title="Toggle sound">🔊 SOUND ON</button>
                 <button id="pauseBtn" class="hud-btn pause-btn" title="Pause game">⏸ PAUSE</button>
             </div>
@@ -114,8 +115,22 @@
                 <button id="resumeBtn" class="pause-menu-btn resume-btn">RESUME</button>
                 <button id="restartBtn" class="pause-menu-btn restart-btn">RESTART</button>
                 <button id="pauseSoundBtn" class="pause-menu-btn sound-btn">🔊 SOUND ON</button>
+                <button id="achievMenuBtn" class="pause-menu-btn achievements-btn">🏆 ACHIEVEMENTS</button>
                 <button id="resetRecordsBtn" class="pause-menu-btn reset-btn">♻ RESET RECORDS</button>
+                <button id="resetAchievBtn" class="pause-menu-btn reset-achiev-btn">RESET ACHIEVEMENTS</button>
             </div>
+
+            <!-- Day 13: achievements panel (opened from pause menu or HUD) -->
+            <div id="achievPanel" class="hidden">
+                <h2>ACHIEVEMENTS</h2>
+                <div id="achievCounter" class="achiev-counter"></div>
+                <div id="achievList" class="achiev-list"></div>
+                <div id="achievStats" class="achiev-stats"></div>
+                <button id="achievCloseBtn" class="ap-close-btn">CLOSE</button>
+            </div>
+
+            <!-- Day 13: achievement popup notifications (top/right of game) -->
+            <div id="achievPopups"></div>
         </div>
 
         <div class="controls">

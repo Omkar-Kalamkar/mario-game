@@ -70,6 +70,18 @@ var shieldValueEl = document.getElementById("shieldValue");
 var doubleJumpValueEl = document.getElementById("doubleJumpValue");
 var doubleJumpTimeEl = document.getElementById("doubleJumpTime");
 
+/* Day 13: achievements elements */
+var achievHudBtnEl = document.getElementById("achievHudBtn");
+var achievHudCountEl = document.getElementById("achievHudCount");
+var achievMenuBtnEl = document.getElementById("achievMenuBtn");
+var resetAchievBtnEl = document.getElementById("resetAchievBtn");
+var achievPanelEl = document.getElementById("achievPanel");
+var achievCounterEl = document.getElementById("achievCounter");
+var achievListEl = document.getElementById("achievList");
+var achievStatsEl = document.getElementById("achievStats");
+var achievCloseBtnEl = document.getElementById("achievCloseBtn");
+var achievPopupsEl = document.getElementById("achievPopups");
+
 /* ===== SOUND SYSTEM (Web Audio API) ===== */
 
 var audioCtx = null;      /* created lazily on first user gesture */
@@ -234,6 +246,16 @@ function sfxDoubleJumpActivate() {
     playTone("square", 400, 0.1, 0.15, 800);
 }
 
+/* Day 13: short celebratory jingle for unlocking an achievement */
+function sfxAchievement() {
+    var notes = [660, 880, 1320];
+    for (var i = 0; i < notes.length; i++) {
+        (function(freq, delay) {
+            setTimeout(function() { playTone("triangle", freq, 0.12, 0.2); }, delay);
+        })(notes[i], i * 90);
+    }
+}
+
 /* --- Sound toggle (HUD button + pause menu share one handler).
    onclicks are used instead of addEventListener so a button can
    never collect duplicate listeners. --- */
@@ -336,6 +358,10 @@ function currentMaxSpeed() {
 function collectPowerUp(pu) {
     pu.collected = true;
     pu.el.style.display = "none";
+
+    /* Day 13: count every power-up collected (once per item) */
+    addStat("powerups", 1);
+    if (ACHIEV_STATS.powerups >= 5) unlockAchievement("powerPlayer");
 
     /* Shield is instant-use and not part of the timed power-up system */
     if (pu.type === "shield") {
@@ -490,6 +516,8 @@ function consumeShield(fromX, knockDir) {
     sfxShieldBlock();
     sfxShieldBreak();
     spawnFloatingText("SHIELD!", playerX + PLAYER_W / 2, playerY + PLAYER_H + 8);
+    /* Day 13: a successfully-blocked hit unlocks the requirement */
+    unlockAchievement("shielded");
 }
 
 /* Small expanding ring where the shield broke */
@@ -1014,6 +1042,10 @@ function defeatEnemy(e) {
     /* Day 11: enemy stomp feeds the combo */
     awardComboScore(STOMP_SCORE, e.x + ENEMY_W / 2, e.y + ENEMY_H + 4);
 
+    /* Day 13: achievements + statistics for defeating enemies */
+    addStat("enemies", 1);
+    if (ACHIEV_STATS.enemies >= 5) unlockAchievement("enemyStomper");
+
     velocityY = currentJumpPower() * STOMP_BOUNCE_FACTOR;
     isOnGround = false;
     onMovingPlatform = null;
@@ -1200,6 +1232,9 @@ function defeatBoss(b) {
     showBanner("BOSS DEFEATED!");
     spawnBossHitFx(b.x + BOSS_W / 2, b.y + BOSS_H);
     sfxBossDefeated();
+    /* Day 13: a level-3 boss kill feeds the statistics + achievement */
+    addStat("bosses", 1);
+    unlockAchievement("bossSlayer");
 }
 
 /* Small one-shot visual effects for boss hits. Everything removes
@@ -1275,6 +1310,8 @@ function doJump() {
         doubleJumpUsed = true;
         spawnDoubleJumpFx(playerX + PLAYER_W / 2, playerY);
         sfxJump();
+        /* Day 13: a successful second jump unlocks the requirement */
+        unlockAchievement("doubleJumper");
     }
 }
 
@@ -1397,6 +1434,10 @@ function loadLevel(index) {
        loadLevel(0) for level 1 never raises it (default is 1). */
     updateBestLevel();
 
+    /* Day 13: entering a level unlocks the matching achievement */
+    if (index >= 1) unlockAchievement("level2");
+    if (index >= 2) unlockAchievement("level3");
+
     /* Hide overlays and show the level banner */
     messageEl.style.display = "none";
     showBanner("LEVEL " + (index + 1) + " READY!");
@@ -1422,6 +1463,11 @@ function completeLevel() {
     if (currentLevelIndex === LEVELS.length - 1) {
         gameState = "win";
         sfxVictory();
+        /* Day 13: completing the whole game unlocks SPEEDRUNNER and
+           increments the games-completed stat. The banner is already
+           in the win state, so its popup is suppressed here. */
+        addStat("gamesCompleted", 1);
+        unlockAchievement("speedrunner");
         renderRecords();
         showMessage(
             "YOU WIN!",
@@ -1672,6 +1718,9 @@ function increaseCombo() {
     if (combo > 1 && soundEnabled) {
         playTone("triangle", 700 + combo * 60, 0.06, 0.12);
     }
+    /* Day 13: track highest combo and unlock the combo achievement */
+    setStatMax("highestCombo", combo);
+    if (combo >= 10) unlockAchievement("comboMaster");
 }
 
 /* Bring the combo back to x1 and stop its timer */
@@ -1992,6 +2041,9 @@ function updateHighScore() {
         newHighAwarded = true;
         persistRecords();
         renderRecords();
+        /* Day 13: record the highest score and unlock the record-setter */
+        setStatMax("highestScore", savedHighScore);
+        unlockAchievement("highScorer");
         highScoreStatEl.classList.add("new-high");
         bumpFlash(newRecordTagEl, "show");
         /* The HUD glow fades on its own after a moment */
@@ -2049,6 +2101,300 @@ function resetRecords() {
 }
 
 resetRecordsBtnEl.onclick = resetRecords;
+
+/* ============================================================
+   DAY 13: ACHIEVEMENTS SYSTEM
+
+   A central, persistent achievement and statistics system. Every
+   achievement is defined once in ACHIEVEMENTS. Unlocked IDs are
+   saved to localStorage and survive restart, game over, winning,
+   closing and reopening the browser. Statistics are persistent
+   too, and the whole thing is guarded with try/catch so it can
+   never crash gameplay when storage is missing or corrupt.
+
+   Achievements unlock exactly once (unlockAchievement guards
+   against re-awarding). Unlocks are keyed off the live gameplay
+   events, so there is no per-frame achievement polling.
+   ============================================================ */
+
+var ACHIEVEMENTS = [
+    { id: "firstCoin",    title: "FIRST COIN",    description: "Collect your first coin." },
+    { id: "coinCollector",title: "COIN COLLECTOR",description: "Collect 10 coins total." },
+    { id: "enemyStomper", title: "ENEMY STOMPER", description: "Defeat 5 enemies by jumping on them." },
+    { id: "comboMaster",  title: "COMBO MASTER",  description: "Reach Combo x10." },
+    { id: "powerPlayer",  title: "POWER PLAYER",  description: "Collect 5 power-ups." },
+    { id: "shielded",     title: "SHIELDED",      description: "Successfully use the Shield to block an enemy hit." },
+    { id: "doubleJumper", title: "DOUBLE JUMPER", description: "Successfully perform a Double Jump." },
+    { id: "level2",       title: "LEVEL 2",       description: "Reach Level 2." },
+    { id: "level3",       title: "LEVEL 3",       description: "Reach Level 3." },
+    { id: "bossSlayer",   title: "BOSS SLAYER",   description: "Defeat the Level 3 boss." },
+    { id: "speedrunner",  title: "SPEEDRUNNER",   description: "Complete the game." },
+    { id: "highScorer",   title: "HIGH SCORER",   description: "Achieve a new personal high score." }
+];
+
+/* Map id -> achievement for fast lookup */
+var ACHIEVEMENT_MAP = {};
+for (var ai = 0; ai < ACHIEVEMENTS.length; ai++) {
+    ACHIEVEMENT_MAP[ACHIEVEMENTS[ai].id] = ACHIEVEMENTS[ai];
+}
+
+var ACHIEV_SAVE_KEY = "marioGameAchievements";   /* array of unlocked ids */
+var ACHIEV_STATS_KEY = "marioGameAchieveStats";  /* statistics object */
+
+/* The set of currently-unlocked achievement ids (object as a set) */
+var unlockedAchievements = {};
+
+/* Persistent statistics (defaults used when storage is unavailable) */
+var ACHIEV_STATS = {
+    coins: 0,
+    enemies: 0,
+    highestCombo: 1,
+    powerups: 0,
+    gamesCompleted: 0,
+    bosses: 0,
+    highestScore: 0
+};
+
+/* Load the unlocked achievement ids from localStorage, validating
+   the data so corrupt/missing storage falls back to empty. */
+function loadAchievements() {
+    var result = {};
+    try {
+        var raw = window.localStorage.getItem(ACHIEV_SAVE_KEY);
+        if (raw) {
+            var arr = JSON.parse(raw);
+            if (Array.isArray(arr)) {
+                for (var i = 0; i < arr.length; i++) {
+                    if (typeof arr[i] === "string" && ACHIEVEMENT_MAP[arr[i]]) {
+                        result[arr[i]] = true;
+                    }
+                }
+            }
+        }
+    } catch (err) {
+        /* storage corrupt/unavailable: start empty */
+    }
+    unlockedAchievements = result;
+}
+
+/* Load the statistics object, merging only valid numeric keys. */
+function loadAchievStats() {
+    var result = {
+        coins: 0, enemies: 0, highestCombo: 1, powerups: 0,
+        gamesCompleted: 0, bosses: 0, highestScore: 0
+    };
+    try {
+        var raw = window.localStorage.getItem(ACHIEV_STATS_KEY);
+        if (raw) {
+            var obj = JSON.parse(raw);
+            if (obj && typeof obj === "object") {
+                for (var key in result) {
+                    var v = Number(obj[key]);
+                    if (isFinite(v) && v >= 0) result[key] = Math.floor(v);
+                }
+                if (result.highestCombo < 1) result.highestCombo = 1;
+            }
+        }
+    } catch (err) {
+        /* storage corrupt/unavailable: use defaults */
+    }
+    ACHIEV_STATS = result;
+}
+
+/* Persist the unlocked achievement ids to localStorage. */
+function persistAchievements() {
+    var ids = [];
+    for (var id in unlockedAchievements) {
+        if (unlockedAchievements[id]) ids.push(id);
+    }
+    try {
+        window.localStorage.setItem(ACHIEV_SAVE_KEY, JSON.stringify(ids));
+    } catch (err) {
+        /* storage unavailable: continue in-memory */
+    }
+}
+
+/* Persist the statistics object to localStorage. */
+function persistAchievStats() {
+    try {
+        window.localStorage.setItem(ACHIEV_STATS_KEY, JSON.stringify(ACHIEV_STATS));
+    } catch (err) {
+        /* storage unavailable: continue in-memory */
+    }
+}
+
+/* Add an amount to a persistent stat and save it. */
+function addStat(key, amount) {
+    ACHIEV_STATS[key] = (ACHIEV_STATS[key] || 0) + (amount || 1);
+    persistAchievStats();
+}
+
+/* Raise a stat to a new maximum (used for highest-combo / score). */
+function setStatMax(key, value) {
+    if (value > (ACHIEV_STATS[key] || 0)) {
+        ACHIEV_STATS[key] = value;
+        persistAchievStats();
+    }
+}
+
+/* The heart of the system: unlock an achievement, but only once.
+   Saves it, updates the HUD counter, plays a sound and queues a
+   notification. */
+function unlockAchievement(id) {
+    if (!ACHIEVEMENT_MAP[id]) return;
+    if (unlockedAchievements[id]) return;   /* never award twice */
+
+    unlockedAchievements[id] = true;
+    persistAchievements();
+    updateAchievHudCount();
+    sfxAchievement();
+    queueAchievPopup(id);
+}
+
+/* ===== Achievement popup notifications (queued, non-blocking) ===== */
+
+var achievPopupQueue = [];
+var achievPopupShowing = false;
+
+/* Add a popup to the queue. If the game has already fully ended it
+   is skipped (the unlock itself still persists). */
+function queueAchievPopup(id) {
+    if (gameState === "gameover" || gameState === "win") return;
+    achievPopupQueue.push(id);
+    if (!achievPopupShowing) nextAchievPopup();
+}
+
+/* Show the next popup in the queue. Popups never touch the game
+   loop or controls; they only slide in, wait, then slide out. */
+function nextAchievPopup() {
+    if (achievPopupQueue.length === 0) {
+        achievPopupShowing = false;
+        return;
+    }
+    achievPopupShowing = true;
+    var id = achievPopupQueue.shift();
+    var a = ACHIEVEMENT_MAP[id];
+
+    var el = document.createElement("div");
+    el.className = "achiev-popup in";
+    el.innerHTML =
+        '<div class="ap-trophy">\uD83C\uDFC6</div>' +
+        '<div class="ap-body">' +
+            '<div class="ap-title">ACHIEVEMENT UNLOCKED!</div>' +
+            '<div class="ap-name">' + a.title + '</div>' +
+            '<div class="ap-desc">' + a.description + '</div>' +
+        '</div>';
+    achievPopupsEl.appendChild(el);
+
+    /* Wait a moment, then animate it out and show the next one. */
+    setTimeout(function() {
+        el.classList.remove("in");
+        el.classList.add("out");
+        el.addEventListener("animationend", function() {
+            if (el.parentNode) el.parentNode.removeChild(el);
+            nextAchievPopup();
+        });
+    }, 3000);
+}
+
+/* ===== HUD counter indicator ===== */
+
+function updateAchievHudCount() {
+    var count = 0;
+    for (var i = 0; i < ACHIEVEMENTS.length; i++) {
+        if (unlockedAchievements[ACHIEVEMENTS[i].id]) count++;
+    }
+    achievHudCountEl.textContent = count + "/" + ACHIEVEMENTS.length;
+}
+
+/* ===== Achievements panel (opened from pause menu or HUD) ===== */
+
+function openAchievPanel() {
+    /* The panel must never run over live gameplay, so freeze it
+       first. setPaused() is a no-op if it is already paused or if
+       the current state does not allow pausing (overlays, win, etc.) */
+    if (gameState === "playing" || gameState === "banner" ||
+        gameState === "dying" || gameState === "levelcomplete") {
+        if (!paused) setPaused(true);
+    }
+    renderAchievPanel();
+    hidePauseMenu();
+    achievPanelEl.classList.remove("hidden");
+}
+
+/* Close the achievements panel and return to the pause menu (the
+   game stays frozen - it does NOT drop straight back to gameplay). */
+function closeAchievPanel() {
+    achievPanelEl.classList.add("hidden");
+    showPauseMenu();
+}
+
+/* Build the achievement cards + statistics inside the panel. */
+function renderAchievPanel() {
+    var counter = 0;
+    var html = "";
+    for (var i = 0; i < ACHIEVEMENTS.length; i++) {
+        var a = ACHIEVEMENTS[i];
+        var unlocked = !!unlockedAchievements[a.id];
+        if (unlocked) counter++;
+        html +=
+            '<div class="achiev-card' + (unlocked ? " unlocked" : " locked") + '">' +
+                '<span class="achiev-icon">' + (unlocked ? "\uD83C\uDFC6" : "\uD83D\uDD12") + '</span>' +
+                '<div class="achiev-info">' +
+                    '<div class="achiev-name">' + a.title + '</div>' +
+                    '<div class="achiev-desc">' + a.description + '</div>' +
+                '</div>' +
+                '<span class="achiev-state">' + (unlocked ? "UNLOCKED" : "LOCKED") + '</span>' +
+            '</div>';
+    }
+    achievListEl.innerHTML = html;
+    achievCounterEl.textContent = counter + " / " + ACHIEVEMENTS.length + " UNLOCKED";
+
+    achievStatsEl.innerHTML =
+        '<h3>STATISTICS</h3>' +
+        '<div class="stat-row">Coins Collected: <b>' + ACHIEV_STATS.coins + '</b></div>' +
+        '<div class="stat-row">Enemies Defeated: <b>' + ACHIEV_STATS.enemies + '</b></div>' +
+        '<div class="stat-row">Highest Combo: <b>x' + ACHIEV_STATS.highestCombo + '</b></div>' +
+        '<div class="stat-row">Power-Ups Collected: <b>' + ACHIEV_STATS.powerups + '</b></div>' +
+        '<div class="stat-row">Games Completed: <b>' + ACHIEV_STATS.gamesCompleted + '</b></div>' +
+        '<div class="stat-row">Bosses Defeated: <b>' + ACHIEV_STATS.bosses + '</b></div>' +
+        '<div class="stat-row">Highest Score: <b>' + ACHIEV_STATS.highestScore + '</b></div>';
+}
+
+/* Reset only the achievement data (unlocks + stats), after asking
+   for confirmation. The game, records and sound settings are left
+   untouched. */
+function resetAchievements() {
+    if (!window.confirm(
+        "Reset all achievements?\n\n" +
+        "This clears your UNLOCKED ACHIEVEMENTS and ACHIEVEMENT STATISTICS.\n" +
+        "Your high score, best level, game and sound settings are NOT affected."
+    )) {
+        return;   /* cancelled */
+    }
+
+    unlockedAchievements = {};
+    ACHIEV_STATS = {
+        coins: 0, enemies: 0, highestCombo: 1, powerups: 0,
+        gamesCompleted: 0, bosses: 0, highestScore: 0
+    };
+    try {
+        window.localStorage.removeItem(ACHIEV_SAVE_KEY);
+        window.localStorage.removeItem(ACHIEV_STATS_KEY);
+    } catch (err) {
+        /* storage unavailable: still reset in-memory values */
+    }
+    updateAchievHudCount();
+    renderAchievPanel();
+}
+
+/* HUD + pause menu buttons. onclick properties so no listener can
+   ever be registered twice. */
+achievHudBtnEl.onclick = openAchievPanel;
+achievMenuBtnEl.onclick = openAchievPanel;
+achievCloseBtnEl.onclick = closeAchievPanel;
+resetAchievBtnEl.onclick = resetAchievements;
+
 
 /* ===== GAME LOOP ===== */
 
@@ -2179,6 +2525,10 @@ function gameLoop() {
                the collected flag above) */
             awardComboScore(50, c.x + COIN_SIZE / 2, c.y + COIN_SIZE + 4);
             sfxCoin();
+            /* Day 13: achievements + statistics for collecting coins */
+            addStat("coins", 1);
+            unlockAchievement("firstCoin");
+            if (ACHIEV_STATS.coins >= 10) unlockAchievement("coinCollector");
         }
     }
 
@@ -2351,4 +2701,9 @@ function gameLoop() {
    HUD is drawn on the first level. */
 loadRecords();
 renderLives();
+/* Day 13: restore saved achievements and statistics before the
+   HUD is drawn (the 🏆 counter), then start the first level. */
+loadAchievements();
+loadAchievStats();
+updateAchievHudCount();
 loadLevel(0);

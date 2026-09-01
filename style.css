@@ -1573,3 +1573,307 @@ body {
     color: #4dd0e1;
     box-shadow: 0 0 8px rgba(77, 208, 225, 0.6);
 }
+
+/* ============================================================
+   DAY 13: ACHIEVEMENTS SYSTEM
+   ============================================================ */
+
+/* Small HUD achievements indicator (uses the shared .hud-btn look) */
+#achievHudBtn {
+    background: #2a2a3e;
+    color: #ffd23f;
+}
+
+#achievHudBtn:hover {
+    border-color: #ffd23f;
+    box-shadow: 0 0 10px rgba(255, 210, 63, 0.5);
+}
+
+#achievHudCount {
+    font-weight: bold;
+}
+
+/* ===== Achievement panel (opens over the paused game) ===== */
+#achievPanel {
+    display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 130;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    padding: 18px 22px;
+    background:
+        radial-gradient(circle at 50% 40%, rgba(64, 48, 128, 0.5), transparent 72%),
+        rgba(8, 6, 22, 0.92);
+}
+
+#achievPanel:not(.hidden) {
+    display: flex;
+    animation: overlayFade 0.3s ease-out;
+}
+
+#achievPanel h2 {
+    font-size: 40px;
+    color: #fff;
+    letter-spacing: 6px;
+    text-shadow: 3px 3px 0 #000, 0 0 20px rgba(255, 210, 63, 0.5);
+    margin-bottom: 2px;
+}
+
+.achiev-counter {
+    font-size: 16px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    color: #ffd23f;
+    text-shadow: 1px 1px 0 #000;
+    margin-bottom: 4px;
+}
+
+/* Scrollable list of achievement cards */
+.achiev-list {
+    width: 100%;
+    max-width: 620px;
+    max-height: 46%;
+    overflow-y: auto;
+    padding: 4px;
+}
+
+.achiev-list::-webkit-scrollbar {
+    width: 8px;
+}
+.achiev-list::-webkit-scrollbar-thumb {
+    background: #555;
+    border-radius: 4px;
+}
+
+.achiev-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 7px 14px;
+    border-radius: 10px;
+    margin-bottom: 6px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Clearly distinguished unlocked vs locked states */
+.achiev-card.unlocked {
+    border-color: #ffd23f;
+    background: rgba(255, 210, 63, 0.08);
+    box-shadow: 0 0 10px rgba(255, 210, 63, 0.15);
+}
+
+.achiev-card.locked {
+    opacity: 0.6;
+}
+
+.achiev-icon {
+    font-size: 24px;
+    line-height: 1;
+}
+
+.achiev-info {
+    flex: 1;
+    text-align: left;
+}
+
+.achiev-name {
+    font-weight: bold;
+    letter-spacing: 1px;
+    font-size: 15px;
+}
+
+.achiev-card.unlocked .achiev-name {
+    color: #ffd23f;
+}
+
+.achiev-card.locked .achiev-name {
+    color: #9aa7c7;
+}
+
+.achiev-desc {
+    font-size: 12px;
+    color: #c9d3ea;
+}
+
+.achiev-state {
+    font-size: 11px;
+    letter-spacing: 1px;
+    font-weight: bold;
+    padding: 3px 8px;
+    border-radius: 8px;
+    white-space: nowrap;
+}
+
+.achiev-card.unlocked .achiev-state {
+    background: rgba(34, 197, 94, 0.2);
+    color: #4ade80;
+}
+
+.achiev-card.locked .achiev-state {
+    background: rgba(255, 255, 255, 0.08);
+    color: #888;
+}
+
+/* ===== Statistics section ===== */
+.achiev-stats {
+    width: 100%;
+    max-width: 620px;
+    padding: 8px 16px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.achiev-stats h3 {
+    font-size: 16px;
+    letter-spacing: 3px;
+    color: #9aa7c7;
+    margin-bottom: 6px;
+    text-align: center;
+}
+
+.stat-row {
+    font-size: 13px;
+    color: #c9d3ea;
+    padding: 2px 0;
+    text-align: center;
+}
+
+.stat-row b {
+    color: #ffd23f;
+}
+
+/* Close button for the achievements panel */
+.ap-close-btn {
+    margin-top: 6px;
+    padding: 10px 40px;
+    border: none;
+    border-radius: 12px;
+    background: linear-gradient(to bottom, #22c55e, #15803d);
+    border-bottom: 5px solid #0e5729;
+    color: #fff;
+    font-size: 18px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    cursor: pointer;
+    box-shadow: 0 5px 14px rgba(0, 0, 0, 0.45);
+    transition: transform 0.12s ease, filter 0.2s ease;
+}
+
+.ap-close-btn:hover {
+    transform: scale(1.06);
+    filter: brightness(1.15);
+}
+
+.ap-close-btn:active {
+    transform: scale(0.97);
+}
+
+/* ===== Achievement popup notifications (top/right, queued) ===== */
+#achievPopups {
+    position: absolute;
+    top: 12px;
+    right: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 90;
+    max-width: 262px;
+    pointer-events: none;
+}
+
+.achiev-popup {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: 12px;
+    background: linear-gradient(to bottom, #2a2a4e, #18182e);
+    border: 2px solid #ffd23f;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5), 0 0 14px rgba(255, 210, 63, 0.35);
+    color: #fff;
+}
+
+.achiev-popup.in {
+    animation: apIn 0.5s ease-out;
+}
+
+.achiev-popup.out {
+    animation: apOut 0.4s ease-in forwards;
+}
+
+@keyframes apIn {
+    from { opacity: 0; transform: translateX(46px) scale(0.9); }
+    to   { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+@keyframes apOut {
+    from { opacity: 1; transform: translateX(0) scale(1); }
+    to   { opacity: 0; transform: translateX(46px) scale(0.9); }
+}
+
+.ap-trophy {
+    font-size: 26px;
+    line-height: 1;
+}
+
+.ap-title {
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: #ffd23f;
+    font-weight: bold;
+}
+
+.ap-name {
+    font-size: 15px;
+    font-weight: bold;
+    letter-spacing: 1px;
+}
+
+.ap-desc {
+    font-size: 12px;
+    color: #c9c9de;
+}
+
+/* Keep the achievement panel animated even while the game is frozen */
+#game.paused #achievPanel,
+#game.paused #achievPanel * {
+    animation-play-state: running;
+}
+
+/* ===== Pause menu: achievements buttons ===== */
+#achievMenuBtn {
+    background: linear-gradient(to bottom, #5b2cb0, #3a1a78);
+    border: 2px solid #7b4cc6;
+    border-bottom: 5px solid #2a1156;
+    font-size: 16px;
+    min-width: 250px;
+    color: #e6dcff;
+}
+
+#achievMenuBtn:hover {
+    filter: brightness(1.2);
+    border-color: #c9a5ff;
+}
+
+/* Reset achievements: distinct muted danger button */
+#resetAchievBtn {
+    background: linear-gradient(to bottom, #4a1620, #33101a);
+    border: 2px solid #8a3040;
+    border-bottom: 5px solid #1d0a10;
+    font-size: 14px;
+    min-width: 250px;
+    color: #ffc9cd;
+}
+
+#resetAchievBtn:hover {
+    filter: brightness(1.2);
+    border-color: #ff8a96;
+}
