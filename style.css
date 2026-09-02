@@ -613,7 +613,6 @@ body {
 }
 
 #message button {
-    margin-top: 10px;
     padding: 12px 35px;
     border: none;
     background: #e52521;
@@ -627,15 +626,6 @@ body {
 
 #message button:hover {
     background: #ff4444;
-}
-
-/* Green variant used for the "Next Level" button */
-#message button.green {
-    background: #00a344;
-}
-
-#message button.green:hover {
-    background: #22c55e;
 }
 
 /* Moving Platforms */
@@ -1876,4 +1866,325 @@ body {
 #resetAchievBtn:hover {
     filter: brightness(1.2);
     border-color: #ff8a96;
+}
+
+/* ============================================================
+   DAY 14: LEVEL SELECT SCREEN
+   ============================================================ */
+
+/* ===== Level Select overlay ===== */
+#levelSelectScreen {
+    display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 125;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 14px;
+    padding: 18px 22px;
+    background:
+        radial-gradient(circle at 50% 40%, rgba(40, 60, 120, 0.5), transparent 72%),
+        rgba(8, 6, 22, 0.94);
+}
+
+#levelSelectScreen:not(.hidden) {
+    display: flex;
+    animation: overlayFade 0.3s ease-out;
+}
+
+#levelSelectScreen h2 {
+    font-size: 36px;
+    color: #fff;
+    letter-spacing: 6px;
+    text-shadow: 3px 3px 0 #000, 0 0 20px rgba(255, 210, 63, 0.5);
+    margin-bottom: 0;
+}
+
+.ls-subtitle {
+    font-size: 16px;
+    letter-spacing: 3px;
+    color: #9aa7c7;
+    margin-bottom: 6px;
+}
+
+/* ===== Level cards grid ===== */
+.level-cards {
+    display: flex;
+    gap: 18px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+/* ===== Individual level card ===== */
+.level-card {
+    width: 240px;
+    border-radius: 16px;
+    padding: 18px 16px 14px;
+    text-align: center;
+    cursor: pointer;
+    transition: transform 0.18s ease, box-shadow 0.25s ease, filter 0.2s ease, border-color 0.25s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.level-card.unlocked {
+    background: linear-gradient(160deg, #1e2a4a 0%, #16213e 100%);
+    border: 2px solid #4a6fa5;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
+}
+
+.level-card.unlocked:hover {
+    transform: translateY(-6px) scale(1.04);
+    box-shadow: 0 10px 30px rgba(74, 111, 165, 0.45);
+    border-color: #ffd23f;
+    filter: brightness(1.1);
+}
+
+.level-card.unlocked:active {
+    transform: translateY(-2px) scale(0.98);
+}
+
+.level-card.locked {
+    background: linear-gradient(160deg, #1a1a2e 0%, #111122 100%);
+    border: 2px solid #333;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+/* Level number */
+.lc-number {
+    font-size: 30px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    margin-bottom: 4px;
+}
+
+.level-card.unlocked .lc-number {
+    color: #ffd23f;
+    text-shadow: 0 0 12px rgba(255, 210, 63, 0.4);
+}
+
+.level-card.locked .lc-number {
+    color: #555;
+}
+
+/* Difficulty badge */
+.lc-difficulty {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    padding: 3px 14px;
+    border-radius: 10px;
+    margin-bottom: 6px;
+}
+
+.lc-difficulty.easy {
+    background: rgba(34, 197, 94, 0.2);
+    color: #4ade80;
+    border: 1px solid rgba(34, 197, 94, 0.4);
+}
+
+.lc-difficulty.medium {
+    background: rgba(255, 157, 46, 0.2);
+    color: #ff9d2e;
+    border: 1px solid rgba(255, 157, 46, 0.4);
+}
+
+.lc-difficulty.hard {
+    background: rgba(229, 37, 33, 0.2);
+    color: #ff6b6b;
+    border: 1px solid rgba(229, 37, 33, 0.4);
+}
+
+.level-card.locked .lc-difficulty {
+    background: rgba(255, 255, 255, 0.05);
+    color: #555;
+    border: 1px solid #333;
+}
+
+/* Level description */
+.lc-desc {
+    font-size: 12px;
+    color: #b0b8d0;
+    line-height: 1.4;
+    margin-bottom: 8px;
+    min-height: 34px;
+}
+
+.level-card.locked .lc-desc {
+    color: #555;
+}
+
+/* Level stats (best score, best coins, status) */
+.lc-stats {
+    font-size: 11px;
+    color: #8890a8;
+    line-height: 1.6;
+    margin-bottom: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding-top: 8px;
+}
+
+.lc-stats .lc-stat-val {
+    color: #c9d3ea;
+    font-weight: bold;
+}
+
+.level-card.locked .lc-stats {
+    color: #444;
+}
+
+.level-card.locked .lc-stats .lc-stat-val {
+    color: #444;
+}
+
+/* Status badge */
+.lc-status {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    padding: 2px 10px;
+    border-radius: 8px;
+}
+
+.lc-status.completed {
+    background: rgba(34, 197, 94, 0.2);
+    color: #4ade80;
+}
+
+.lc-status.not-completed {
+    background: rgba(255, 255, 255, 0.06);
+    color: #666;
+}
+
+/* Lock overlay icon */
+.lc-lock {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 42px;
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+/* Completion checkmark overlay */
+.lc-check {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    font-size: 18px;
+    color: #4ade80;
+    text-shadow: 0 0 6px rgba(74, 222, 128, 0.5);
+    pointer-events: none;
+}
+
+/* ===== Pause menu: level select button ===== */
+#pauseLevelSelectBtn {
+    background: linear-gradient(to bottom, #1e6fa5, #134a72);
+    border: 2px solid #2a8fd4;
+    border-bottom: 5px solid #0e3a56;
+    font-size: 16px;
+    min-width: 250px;
+    color: #b8e0ff;
+}
+
+#pauseLevelSelectBtn:hover {
+    filter: brightness(1.2);
+    border-color: #5bb8f0;
+}
+
+/* ===== Level Select: close button ===== */
+.ls-close-btn {
+    margin-top: 6px;
+    padding: 10px 40px;
+    border: none;
+    border-radius: 12px;
+    background: linear-gradient(to bottom, #e52521, #b81c19);
+    border-bottom: 5px solid #7a1210;
+    color: #fff;
+    font-size: 18px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    cursor: pointer;
+    box-shadow: 0 5px 14px rgba(0, 0, 0, 0.45);
+    transition: transform 0.12s ease, filter 0.2s ease;
+}
+
+.ls-close-btn:hover {
+    transform: scale(1.06);
+    filter: brightness(1.15);
+}
+
+.ls-close-btn:active {
+    transform: scale(0.97);
+}
+
+/* ===== Message overlay extra buttons ===== */
+#messageButtons {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 10px;
+}
+
+#messageButtons button {
+    padding: 12px 28px;
+    border: none;
+    background: #e52521;
+    color: white;
+    font-size: 18px;
+    font-weight: bold;
+    cursor: pointer;
+    border-radius: 8px;
+    letter-spacing: 1px;
+    transition: transform 0.1s ease, filter 0.15s ease;
+}
+
+#messageButtons button:hover {
+    background: #ff4444;
+    transform: scale(1.05);
+    filter: brightness(1.1);
+}
+
+#messageButtons button:active {
+    transform: scale(0.95);
+}
+
+#messageButtons button.green {
+    background: #00a344;
+}
+
+#messageButtons button.green:hover {
+    background: #22c55e;
+}
+
+#messageButtons button.blue {
+    background: #1e6fa5;
+}
+
+#messageButtons button.blue:hover {
+    background: #2a8fd4;
+}
+
+#messageButtons button.orange {
+    background: #e07b00;
+}
+
+#messageButtons button.orange:hover {
+    background: #ff9d2e;
+}
+
+/* Keep the Level Select screen animated while game is paused */
+#game.paused #levelSelectScreen,
+#game.paused #levelSelectScreen * {
+    animation-play-state: running;
 }

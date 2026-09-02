@@ -30,7 +30,7 @@ var livesHeartsEl = document.getElementById("livesHearts");
 var messageEl = document.getElementById("message");
 var messageTextEl = document.getElementById("messageText");
 var messageInfoEl = document.getElementById("messageInfo");
-var messageBtnEl = document.getElementById("messageBtn");
+var messageButtonsEl = document.getElementById("messageButtons");
 var powerNameEl = document.getElementById("powerName");
 var powerTimerBar = document.getElementById("powerTimerBar");
 var goalEl = document.getElementById("goal");
@@ -81,6 +81,12 @@ var achievListEl = document.getElementById("achievList");
 var achievStatsEl = document.getElementById("achievStats");
 var achievCloseBtnEl = document.getElementById("achievCloseBtn");
 var achievPopupsEl = document.getElementById("achievPopups");
+
+/* Day 14: level select elements */
+var levelSelectScreenEl = document.getElementById("levelSelectScreen");
+var levelCardsEl = document.getElementById("levelCards");
+var levelSelectCloseBtnEl = document.getElementById("levelSelectCloseBtn");
+var pauseLevelSelectBtnEl = document.getElementById("pauseLevelSelectBtn");
 
 /* ===== SOUND SYSTEM (Web Audio API) ===== */
 
@@ -253,6 +259,21 @@ function sfxAchievement() {
         (function(freq, delay) {
             setTimeout(function() { playTone("triangle", freq, 0.12, 0.2); }, delay);
         })(notes[i], i * 90);
+    }
+}
+
+/* Day 14: level select / unlock sounds */
+function sfxLevelSelect() {
+    playTone("sine", 660, 0.08, 0.18);
+    setTimeout(function() { playTone("sine", 880, 0.1, 0.2); }, 60);
+}
+
+function sfxLevelUnlock() {
+    var notes = [523, 659, 784, 1047];
+    for (var i = 0; i < notes.length; i++) {
+        (function(freq, delay) {
+            setTimeout(function() { playTone("triangle", freq, 0.15, 0.2); }, delay);
+        })(notes[i], i * 80);
     }
 }
 
@@ -605,6 +626,17 @@ var keys = { left: false, right: false };
 /* Current level bookkeeping */
 var currentLevelIndex = 0;   /* index into LEVELS (0 = level 1) */
 var currentGoalX = 850;      /* flag position of the current level */
+
+/* Day 14: level select state */
+var stateBeforeLevelSelect = null;   /* gameState saved when level select opens */
+var wasPausedBeforeLevelSelect = false;  /* was the game paused before level select? */
+
+/* Day 14: level info for the Level Select screen */
+var LEVEL_INFO = [
+    { difficulty: "EASY",   diffClass: "easy",   desc: "Learn the basics and collect coins." },
+    { difficulty: "MEDIUM", diffClass: "medium", desc: "Cross dangerous pits and avoid faster enemies." },
+    { difficulty: "HARD",   diffClass: "hard",   desc: "Master difficult platforms and defeat the boss." }
+];
 
 /* Loop handling: only ever one animation frame scheduled at a time */
 var rafId = null;
@@ -1328,7 +1360,10 @@ function showBanner(text) {
 /* Shows the overlay. btnAction is stored as onclick (a property),
    so clicking the button can never stack duplicate listeners.
    The optional recordText is shown under the info line (used for
-   "NEW HIGH SCORE!" on the game over / win screens). */
+   "NEW HIGH SCORE!" on the game over / win screens).
+
+   Day 14: supports an optional buttons array for multi-button screens.
+   buttons = [{label, action, class}, ...] */
 function showMessage(text, infoText, btnLabel, btnAction, btnClass, recordText) {
     messageTextEl.textContent = text;
     if (infoText) {
@@ -1343,9 +1378,33 @@ function showMessage(text, infoText, btnLabel, btnAction, btnClass, recordText) 
     } else {
         recordNoticeEl.style.display = "none";
     }
-    messageBtnEl.textContent = btnLabel;
-    messageBtnEl.className = btnClass ? btnClass : "";
-    messageBtnEl.onclick = btnAction;
+
+    /* Build the button(s) */
+    messageButtonsEl.innerHTML = "";
+
+    /* Accept extra buttons via the 7th argument (array of {label,action,class}) */
+    var extraButtons = (arguments.length > 6 && Array.isArray(arguments[6]))
+                       ? arguments[6] : null;
+
+    if (extraButtons) {
+        /* Multi-button mode */
+        for (var b = 0; b < extraButtons.length; b++) {
+            var bd = extraButtons[b];
+            var btn = document.createElement("button");
+            btn.textContent = bd.label;
+            if (bd.cls) btn.className = bd.cls;
+            btn.onclick = bd.action;
+            messageButtonsEl.appendChild(btn);
+        }
+    } else {
+        /* Legacy single-button mode */
+        var singleBtn = document.createElement("button");
+        singleBtn.textContent = btnLabel;
+        if (btnClass) singleBtn.className = btnClass;
+        singleBtn.onclick = btnAction;
+        messageButtonsEl.appendChild(singleBtn);
+    }
+
     messageEl.style.display = "flex";
 }
 
@@ -1460,6 +1519,15 @@ function completeLevel() {
 
     gameWon = true;
 
+    /* Day 14: save per-level statistics */
+    saveLevelStats(currentLevelIndex, score, coinCount);
+
+    /* Day 14: mark level as completed and unlock the next */
+    levelsCompleted++;
+    unlockNextLevel(currentLevelIndex);
+    checkLevelExplorer();
+    persistLevelSelectData();
+
     if (currentLevelIndex === LEVELS.length - 1) {
         gameState = "win";
         sfxVictory();
@@ -1474,20 +1542,26 @@ function completeLevel() {
             "FINAL SCORE: " + score + "  |  HIGH SCORE: " + savedHighScore +
                 "  |  BEST LEVEL: " + LEVELS.length +
                 "  |  Coins collected: " + totalCoinsRun,
-            "Restart Game",
-            restartGame,
-            "",
-            newHighAwarded ? "NEW HIGH SCORE!" : ""
+            null, null, null,
+            newHighAwarded ? "NEW HIGH SCORE!" : "",
+            [
+                { label: "PLAY AGAIN", action: restartGame, cls: "green" },
+                { label: "LEVEL SELECT", action: function() { openLevelSelect(); }, cls: "blue" }
+            ]
         );
     } else {
         gameState = "levelcomplete";
         sfxLevelComplete();
+        var nextIdx = currentLevelIndex + 1;
         showMessage(
             "LEVEL " + (currentLevelIndex + 1) + " COMPLETE!",
             "Score so far: " + score,
-            "Next Level",
-            function() { loadLevel(currentLevelIndex + 1); },
-            "green"
+            null, null, null, null,
+            [
+                { label: "NEXT LEVEL", action: function() { loadLevel(nextIdx); }, cls: "green" },
+                { label: "REPLAY LEVEL", action: function() { selectLevel(currentLevelIndex); }, cls: "orange" },
+                { label: "LEVEL SELECT", action: function() { openLevelSelect(); }, cls: "blue" }
+            ]
         );
     }
 }
@@ -2103,6 +2177,355 @@ function resetRecords() {
 resetRecordsBtnEl.onclick = resetRecords;
 
 /* ============================================================
+   DAY 14: LEVEL SELECT SYSTEM
+
+    Level unlocking, per-level statistics (best score, best coins),
+    and the level select screen. Progress is stored in localStorage
+    and survives browser restarts. Level 1 is always unlocked;
+    completing or reaching level N unlocks level N+1.
+   ============================================================ */
+
+var LEVEL_UNLOCK_KEY = "marioGameLevelUnlocks";   /* JSON array of booleans */
+var LEVEL_BEST_SCORE_KEY = "marioGameLevelBestScore";  /* JSON array of numbers */
+var LEVEL_BEST_COINS_KEY = "marioGameLevelBestCoins";  /* JSON array of numbers */
+var LEVELS_COMPLETED_KEY = "marioGameLevelsCompleted";  /* number */
+var LEVELS_REPLAYED_KEY = "marioGameLevelsReplayed";    /* number */
+var LEVEL_COMPLETED_KEY = "marioGameLevelCompleted";    /* JSON array of booleans */
+
+/* In-memory state */
+var levelUnlocked = [true, false, false];  /* level 1 always unlocked */
+var levelBestScore = [0, 0, 0];
+var levelBestCoins = [0, 0, 0];           /* best coins collected per level */
+var levelsCompleted = 0;
+var levelsReplayed = 0;
+var levelCompleted = [false, false, false];/* explicit per-level completion flag */
+
+/* Level coins count: how many coins each level has (filled on build) */
+var levelCoinCounts = [5, 6, 8];          /* matches LEVELS data */
+
+/* Read a JSON array from localStorage with a fallback default */
+function readJsonArray(key, fallback) {
+    try {
+        var raw = window.localStorage.getItem(key);
+        if (raw === null) return fallback;
+        var arr = JSON.parse(raw);
+        if (Array.isArray(arr) && arr.length === fallback.length) {
+            for (var i = 0; i < arr.length; i++) {
+                var v = Number(arr[i]);
+                if (!isFinite(v) || v < 0) return fallback;
+            }
+            return arr;
+        }
+    } catch (err) {
+        /* corrupt data: use fallback */
+    }
+    return fallback;
+}
+
+/* Write a JSON array to localStorage */
+function writeJsonArray(key, arr) {
+    try {
+        window.localStorage.setItem(key, JSON.stringify(arr));
+    } catch (err) {
+        /* storage unavailable */
+    }
+}
+
+/* Load all level select data from localStorage */
+function loadLevelSelectData() {
+    levelUnlocked = readJsonArray(LEVEL_UNLOCK_KEY, [true, false, false]);
+    /* Always ensure level 1 is unlocked */
+    levelUnlocked[0] = true;
+    levelBestScore = readJsonArray(LEVEL_BEST_SCORE_KEY, [0, 0, 0]);
+    levelBestCoins = readJsonArray(LEVEL_BEST_COINS_KEY, [0, 0, 0]);
+    levelsCompleted = readNumber(LEVELS_COMPLETED_KEY, 0);
+    levelsReplayed = readNumber(LEVELS_REPLAYED_KEY, 0);
+
+    /* Completion flags: load as an array of booleans */
+    levelCompleted = [false, false, false];
+    try {
+        var raw = window.localStorage.getItem(LEVEL_COMPLETED_KEY);
+        if (raw) {
+            var arr = JSON.parse(raw);
+            if (Array.isArray(arr) && arr.length === 3) {
+                for (var i = 0; i < 3; i++) {
+                    levelCompleted[i] = !!arr[i];
+                }
+            }
+        }
+    } catch (err) {
+        /* corrupt data: use defaults */
+    }
+}
+
+/* Persist all level select data to localStorage */
+function persistLevelSelectData() {
+    writeJsonArray(LEVEL_UNLOCK_KEY, levelUnlocked);
+    writeJsonArray(LEVEL_BEST_SCORE_KEY, levelBestScore);
+    writeJsonArray(LEVEL_BEST_COINS_KEY, levelBestCoins);
+    writeNumber(LEVELS_COMPLETED_KEY, levelsCompleted);
+    writeNumber(LEVELS_REPLAYED_KEY, levelsReplayed);
+    try {
+        window.localStorage.setItem(LEVEL_COMPLETED_KEY, JSON.stringify(levelCompleted));
+    } catch (err) {
+        /* storage unavailable */
+    }
+}
+
+/* Unlock the next level if it exists. Plays a sound and checks
+   the Level Explorer achievement. */
+function unlockNextLevel(completedIndex) {
+    var nextIdx = completedIndex + 1;
+    if (nextIdx < LEVELS.length && !levelUnlocked[nextIdx]) {
+        levelUnlocked[nextIdx] = true;
+        persistLevelSelectData();
+        sfxLevelUnlock();
+    }
+}
+
+/* Save best score and best coins for a completed/replayed level */
+function saveLevelStats(levelIdx, scoreVal, coinsVal) {
+    if (scoreVal > levelBestScore[levelIdx]) {
+        levelBestScore[levelIdx] = scoreVal;
+    }
+    if (coinsVal > levelBestCoins[levelIdx]) {
+        levelBestCoins[levelIdx] = coinsVal;
+    }
+    levelCompleted[levelIdx] = true;
+    persistLevelSelectData();
+}
+
+/* Check the Level Explorer achievement: have all 3 levels been
+   completed at least once? Uses a separate persistent flag
+   per level to track this independently of replay data. */
+var LEVEL_EXPLORED_KEY = "marioGameLevelsExplored";
+
+function checkLevelExplorer() {
+    var explored;
+    try {
+        var raw = window.localStorage.getItem(LEVEL_EXPLORED_KEY);
+        explored = raw ? JSON.parse(raw) : [false, false, false];
+        if (!Array.isArray(explored) || explored.length !== 3) {
+            explored = [false, false, false];
+        }
+    } catch (err) {
+        explored = [false, false, false];
+    }
+    explored[currentLevelIndex] = true;
+    try {
+        window.localStorage.setItem(LEVEL_EXPLORED_KEY, JSON.stringify(explored));
+    } catch (err) { /* storage unavailable */ }
+    if (explored[0] && explored[1] && explored[2]) {
+        unlockAchievement("levelExplorer");
+    }
+}
+
+/* ===== Level Select Screen ===== */
+
+function openLevelSelect() {
+    /* Freeze gameplay if it was running */
+    stateBeforeLevelSelect = gameState;
+    wasPausedBeforeLevelSelect = paused;
+
+    /* Close pause menu if open */
+    hidePauseMenu();
+    if (achievPanelEl && !achievPanelEl.classList.contains("hidden")) {
+        achievPanelEl.classList.add("hidden");
+    }
+    /* Hide the completion/win overlay if it's covering the game */
+    messageEl.style.display = "none";
+
+    /* Freeze everything */
+    if (!paused) {
+        paused = true;
+        pausedStartMs = performance.now();
+        game.classList.add("paused");
+        keys.left = false;
+        keys.right = false;
+        if (rafId !== null) {
+            cancelAnimationFrame(rafId);
+            rafId = null;
+        }
+        suspendPausableTimers();
+    }
+
+    gameState = "levelselect";
+    renderLevelCards();
+    levelSelectScreenEl.classList.remove("hidden");
+}
+
+function closeLevelSelect() {
+    levelSelectScreenEl.classList.add("hidden");
+
+    /* If the game was already paused before level select, return to
+       the pause menu rather than resuming gameplay */
+    if (wasPausedBeforeLevelSelect) {
+        paused = true;
+        game.classList.add("paused");
+        gameState = stateBeforeLevelSelect || "playing";
+        showPauseMenu();
+        stateBeforeLevelSelect = null;
+        wasPausedBeforeLevelSelect = false;
+        return;
+    }
+
+    /* Restore the previous state */
+    if (stateBeforeLevelSelect === "playing") {
+        /* Resume gameplay exactly where it left off */
+        shiftTimestamps(performance.now() - pausedStartMs);
+        paused = false;
+        game.classList.remove("paused");
+        resumePausableTimers();
+        gameState = stateBeforeLevelSelect;
+        startLoop();
+    } else if (stateBeforeLevelSelect === "banner") {
+        /* Resume the banner timer */
+        shiftTimestamps(performance.now() - pausedStartMs);
+        paused = false;
+        game.classList.remove("paused");
+        resumePausableTimers();
+        gameState = "banner";
+        /* If the banner timer was running, restart it */
+        if (levelStartTimer === null) {
+            levelStartTimer = startPausableTimer(function() {
+                gameState = "playing";
+                startLoop();
+            }, BANNER_WAIT_MS);
+        }
+    } else if (stateBeforeLevelSelect === "levelcomplete" ||
+               stateBeforeLevelSelect === "win") {
+        /* Return to the completion / win overlay */
+        paused = false;
+        game.classList.remove("paused");
+        gameState = stateBeforeLevelSelect;
+        messageEl.style.display = "flex";
+    } else {
+        /* Was already paused: go back to pause menu */
+        paused = true;
+        game.classList.add("paused");
+        gameState = stateBeforeLevelSelect || "playing";
+        showPauseMenu();
+    }
+
+    stateBeforeLevelSelect = null;
+    wasPausedBeforeLevelSelect = false;
+}
+
+function selectLevel(levelIdx) {
+    if (!levelUnlocked[levelIdx]) return;
+
+    sfxLevelSelect();
+
+    /* Close level select overlay */
+    levelSelectScreenEl.classList.add("hidden");
+
+    /* Fully clean up current state before loading the new level */
+    if (levelStartTimer !== null) {
+        clearPausableTimer(levelStartTimer);
+        levelStartTimer = null;
+    }
+    if (respawnTimer !== null) {
+        clearPausableTimer(respawnTimer);
+        respawnTimer = null;
+    }
+    if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+    }
+
+    paused = false;
+    game.classList.remove("paused");
+    hidePauseMenu();
+
+    /* Check if this is a replay (level already completed) */
+    if (levelCompleted[levelIdx] || levelBestScore[levelIdx] > 0 ||
+        levelUnlocked[levelIdx + 1]) {
+        levelsReplayed++;
+        persistLevelSelectData();
+    }
+
+    /* Reset score for a fresh level start */
+    score = 0;
+    totalCoinsRun = 0;
+    lives = START_LIVES;
+    isDying = false;
+    newHighAwarded = false;
+    invulnUntil = 0;
+    resetCombo();
+
+    renderLives();
+    loadLevel(levelIdx);
+}
+
+function renderLevelCards() {
+    var html = "";
+    for (var i = 0; i < LEVELS.length; i++) {
+        var unlocked = levelUnlocked[i];
+        var info = LEVEL_INFO[i];
+        var bestScore = levelBestScore[i];
+        var bestCoins = levelBestCoins[i];
+        var totalCoins = levelCoinCounts[i];
+        var isCompleted = levelCompleted[i];
+
+        html += '<div class="level-card ' + (unlocked ? "unlocked" : "locked") +
+                '" data-level="' + i + '">';
+
+        if (unlocked) {
+            /* Level number */
+            html += '<div class="lc-number">LEVEL ' + (i + 1) + '</div>';
+
+            /* Difficulty badge */
+            html += '<div class="lc-difficulty ' + info.diffClass + '">' +
+                    info.difficulty + '</div>';
+
+            /* Description */
+            html += '<div class="lc-desc">' + info.desc + '</div>';
+
+            /* Stats */
+            html += '<div class="lc-stats">' +
+                    'Best Score: <span class="lc-stat-val">' +
+                    (bestScore > 0 ? bestScore : "--") + '</span><br>' +
+                    'Best Coins: <span class="lc-stat-val">' +
+                    (bestScore > 0 ? bestCoins + "/" + totalCoins : "--") + '</span><br>' +
+                    'Status: <span class="lc-status ' +
+                    (isCompleted ? "completed" : "not-completed") + '">' +
+                    (isCompleted ? "COMPLETED" : "NOT COMPLETED") + '</span>' +
+                    '</div>';
+
+            if (isCompleted) {
+                html += '<div class="lc-check">✓</div>';
+            }
+        } else {
+            /* Locked level */
+            html += '<div class="lc-number">LEVEL ' + (i + 1) + '</div>';
+            html += '<div class="lc-difficulty">' + info.difficulty + '</div>';
+            html += '<div class="lc-desc">' + info.desc + '</div>';
+            html += '<div class="lc-lock">🔒</div>';
+            html += '<div class="lc-stats" style="opacity:0.4">' +
+                    '<span class="lc-status not-completed">🔒 LOCKED</span></div>';
+        }
+
+        html += '</div>';
+    }
+    levelCardsEl.innerHTML = html;
+
+    /* Attach click handlers using onclick properties (no duplicate listeners) */
+    var cards = levelCardsEl.querySelectorAll(".level-card");
+    for (var c = 0; c < cards.length; c++) {
+        (function(card) {
+            card.onclick = function() {
+                var idx = Number(card.getAttribute("data-level"));
+                selectLevel(idx);
+            };
+        })(cards[c]);
+    }
+}
+
+/* Level Select screen buttons */
+levelSelectCloseBtnEl.onclick = closeLevelSelect;
+pauseLevelSelectBtnEl.onclick = openLevelSelect;
+
+/* ============================================================
    DAY 13: ACHIEVEMENTS SYSTEM
 
    A central, persistent achievement and statistics system. Every
@@ -2129,7 +2552,8 @@ var ACHIEVEMENTS = [
     { id: "level3",       title: "LEVEL 3",       description: "Reach Level 3." },
     { id: "bossSlayer",   title: "BOSS SLAYER",   description: "Defeat the Level 3 boss." },
     { id: "speedrunner",  title: "SPEEDRUNNER",   description: "Complete the game." },
-    { id: "highScorer",   title: "HIGH SCORER",   description: "Achieve a new personal high score." }
+    { id: "highScorer",   title: "HIGH SCORER",   description: "Achieve a new personal high score." },
+    { id: "levelExplorer",title: "LEVEL EXPLORER",description: "Complete or replay all three levels." }
 ];
 
 /* Map id -> achievement for fast lookup */
@@ -2323,10 +2747,16 @@ function openAchievPanel() {
 }
 
 /* Close the achievements panel and return to the pause menu (the
-   game stays frozen - it does NOT drop straight back to gameplay). */
+   game stays frozen - it does NOT drop straight back to gameplay).
+   Day 14: if level select was the previous screen, go back there. */
 function closeAchievPanel() {
     achievPanelEl.classList.add("hidden");
-    showPauseMenu();
+    if (gameState === "levelselect") {
+        renderLevelCards();
+        levelSelectScreenEl.classList.remove("hidden");
+    } else {
+        showPauseMenu();
+    }
 }
 
 /* Build the achievement cards + statistics inside the panel. */
@@ -2358,7 +2788,15 @@ function renderAchievPanel() {
         '<div class="stat-row">Power-Ups Collected: <b>' + ACHIEV_STATS.powerups + '</b></div>' +
         '<div class="stat-row">Games Completed: <b>' + ACHIEV_STATS.gamesCompleted + '</b></div>' +
         '<div class="stat-row">Bosses Defeated: <b>' + ACHIEV_STATS.bosses + '</b></div>' +
-        '<div class="stat-row">Highest Score: <b>' + ACHIEV_STATS.highestScore + '</b></div>';
+        '<div class="stat-row">Highest Score: <b>' + ACHIEV_STATS.highestScore + '</b></div>' +
+        '<div class="stat-row">Levels Completed: <b>' + levelsCompleted + '</b></div>' +
+        '<div class="stat-row">Levels Replayed: <b>' + levelsReplayed + '</b></div>' +
+        '<div class="stat-row">Best Score (L1): <b>' + levelBestScore[0] + '</b> | ' +
+            'Best Coins (L1): <b>' + levelBestCoins[0] + '/' + levelCoinCounts[0] + '</b></div>' +
+        '<div class="stat-row">Best Score (L2): <b>' + levelBestScore[1] + '</b> | ' +
+            'Best Coins (L2): <b>' + levelBestCoins[1] + '/' + levelCoinCounts[1] + '</b></div>' +
+        '<div class="stat-row">Best Score (L3): <b>' + levelBestScore[2] + '</b> | ' +
+            'Best Coins (L3): <b>' + levelBestCoins[2] + '/' + levelCoinCounts[2] + '</b></div>';
 }
 
 /* Reset only the achievement data (unlocks + stats), after asking
@@ -2706,4 +3144,6 @@ renderLives();
 loadAchievements();
 loadAchievStats();
 updateAchievHudCount();
+/* Day 14: restore level unlock/progress data */
+loadLevelSelectData();
 loadLevel(0);

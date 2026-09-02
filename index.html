@@ -62,7 +62,7 @@
                     </span>
                     <span id="powerTimerBarWrap"><span id="powerTimerBar"></span></span>
                 </div>
-                <button id="achievHudBtn" class="hud-btn" title="Achievements">🏆 <span id="achievHudCount">0/12</span></button>
+                <button id="achievHudBtn" class="hud-btn" title="Achievements">🏆 <span id="achievHudCount">0/13</span></button>
                 <button id="soundBtn" class="hud-btn" title="Toggle sound">🔊 SOUND ON</button>
                 <button id="pauseBtn" class="hud-btn pause-btn" title="Pause game">⏸ PAUSE</button>
             </div>
@@ -105,7 +105,7 @@
                 <h1 id="messageText">GAME OVER</h1>
                 <p id="messageInfo"></p>
                 <p id="recordNotice" class="record-notice"></p>
-                <button id="messageBtn">Restart</button>
+                <div id="messageButtons"></div>
             </div>
 
             <!-- Day 9: pause / settings overlay (shown by script.js) -->
@@ -116,6 +116,7 @@
                 <button id="restartBtn" class="pause-menu-btn restart-btn">RESTART</button>
                 <button id="pauseSoundBtn" class="pause-menu-btn sound-btn">🔊 SOUND ON</button>
                 <button id="achievMenuBtn" class="pause-menu-btn achievements-btn">🏆 ACHIEVEMENTS</button>
+                <button id="pauseLevelSelectBtn" class="pause-menu-btn levelselect-btn">🎯 LEVEL SELECT</button>
                 <button id="resetRecordsBtn" class="pause-menu-btn reset-btn">♻ RESET RECORDS</button>
                 <button id="resetAchievBtn" class="pause-menu-btn reset-achiev-btn">RESET ACHIEVEMENTS</button>
             </div>
@@ -131,6 +132,14 @@
 
             <!-- Day 13: achievement popup notifications (top/right of game) -->
             <div id="achievPopups"></div>
+
+            <!-- Day 14: Level Select screen -->
+            <div id="levelSelectScreen" class="hidden">
+                <h2>MARIO PLATFORM ADVENTURE</h2>
+                <p class="ls-subtitle">SELECT LEVEL</p>
+                <div id="levelCards" class="level-cards"></div>
+                <button id="levelSelectCloseBtn" class="ls-close-btn">BACK</button>
+            </div>
         </div>
 
         <div class="controls">
