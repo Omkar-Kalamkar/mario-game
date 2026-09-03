@@ -117,6 +117,7 @@
                 <button id="pauseSoundBtn" class="pause-menu-btn sound-btn">🔊 SOUND ON</button>
                 <button id="achievMenuBtn" class="pause-menu-btn achievements-btn">🏆 ACHIEVEMENTS</button>
                 <button id="pauseLevelSelectBtn" class="pause-menu-btn levelselect-btn">🎯 LEVEL SELECT</button>
+                <button id="pauseWorldMapBtn" class="pause-menu-btn worldmap-btn">🗺 WORLD MAP</button>
                 <button id="resetRecordsBtn" class="pause-menu-btn reset-btn">♻ RESET RECORDS</button>
                 <button id="resetAchievBtn" class="pause-menu-btn reset-achiev-btn">RESET ACHIEVEMENTS</button>
             </div>
@@ -138,7 +139,22 @@
                 <h2>MARIO PLATFORM ADVENTURE</h2>
                 <p class="ls-subtitle">SELECT LEVEL</p>
                 <div id="levelCards" class="level-cards"></div>
+                <button id="levelSelectWorldMapBtn" class="ls-worldmap-btn">🗺 WORLD MAP</button>
                 <button id="levelSelectCloseBtn" class="ls-close-btn">BACK</button>
+            </div>
+
+            <!-- Day 15: World Map screen -->
+            <div id="worldMapScreen" class="hidden">
+                <h2>MARIO PLATFORM ADVENTURE</h2>
+                <p class="ls-subtitle">WORLD MAP</p>
+                <div id="worldMapBody" class="worldmap-body">
+                    <div class="worldmap-nodes" id="worldMapNodes"></div>
+                    <div class="worldmap-side">
+                        <div id="worldMapProgress" class="worldmap-progress"></div>
+                        <div id="worldMapDetails" class="worldmap-details"></div>
+                    </div>
+                </div>
+                <button id="worldMapCloseBtn" class="ls-close-btn">BACK</button>
             </div>
         </div>
 

@@ -88,6 +88,15 @@ var levelCardsEl = document.getElementById("levelCards");
 var levelSelectCloseBtnEl = document.getElementById("levelSelectCloseBtn");
 var pauseLevelSelectBtnEl = document.getElementById("pauseLevelSelectBtn");
 
+/* Day 15: world map elements */
+var worldMapScreenEl = document.getElementById("worldMapScreen");
+var worldMapNodesEl = document.getElementById("worldMapNodes");
+var worldMapProgressEl = document.getElementById("worldMapProgress");
+var worldMapDetailsEl = document.getElementById("worldMapDetails");
+var worldMapCloseBtnEl = document.getElementById("worldMapCloseBtn");
+var levelSelectWorldMapBtnEl = document.getElementById("levelSelectWorldMapBtn");
+var pauseWorldMapBtnEl = document.getElementById("pauseWorldMapBtn");
+
 /* ===== SOUND SYSTEM (Web Audio API) ===== */
 
 var audioCtx = null;      /* created lazily on first user gesture */
@@ -275,6 +284,18 @@ function sfxLevelUnlock() {
             setTimeout(function() { playTone("triangle", freq, 0.15, 0.2); }, delay);
         })(notes[i], i * 80);
     }
+}
+
+/* Day 15: World Map sounds */
+function sfxWorldMapOpen() {
+    playTone("sine", 392, 0.1, 0.18);
+    setTimeout(function() { playTone("sine", 523, 0.12, 0.2); }, 90);
+    setTimeout(function() { playTone("sine", 659, 0.18, 0.22); }, 180);
+}
+
+function sfxWorldMapSelect() {
+    playTone("triangle", 660, 0.08, 0.18);
+    setTimeout(function() { playTone("triangle", 880, 0.12, 0.2); }, 70);
 }
 
 /* --- Sound toggle (HUD button + pause menu share one handler).
@@ -630,6 +651,11 @@ var currentGoalX = 850;      /* flag position of the current level */
 /* Day 14: level select state */
 var stateBeforeLevelSelect = null;   /* gameState saved when level select opens */
 var wasPausedBeforeLevelSelect = false;  /* was the game paused before level select? */
+
+/* Day 15: world map state (how the map was opened, so closing returns correctly) */
+var worldMapFromLevelSelect = false;   /* true when opened from Level Select */
+var worldMapWasPaused = false;         /* was the game paused before the map opened */
+var worldMapPrevState = null;          /* gameState saved when the map opened */
 
 /* Day 14: level info for the Level Select screen */
 var LEVEL_INFO = [
@@ -1307,6 +1333,13 @@ document.addEventListener("keydown", function(e) {
     /* Day 9: P or Escape toggles the pause menu */
     if (e.key === "Escape" || e.key === "p" || e.key === "P") {
         e.preventDefault();
+        /* Day 15: if the World Map is open, Escape closes it back to
+           its prior screen (keeps gameplay frozen), it does NOT unpause */
+        if (gameState === "worldmap" &&
+            !worldMapScreenEl.classList.contains("hidden")) {
+            closeWorldMap();
+            return;
+        }
         togglePause();
         return;
     }
@@ -2526,6 +2559,263 @@ levelSelectCloseBtnEl.onclick = closeLevelSelect;
 pauseLevelSelectBtnEl.onclick = openLevelSelect;
 
 /* ============================================================
+   DAY 15: WORLD MAP
+   ============================================================ */
+
+/* Whether the WORLD EXPLORER achievement is pending (all three
+   nodes visited). Tracked so it only unlocks once. */
+var worldExplorerVisited = [false, false, false];
+
+/* Determine a node's status: "locked", "available" or "completed" */
+function worldMapStatus(idx) {
+    if (!levelUnlocked[idx]) return "locked";
+    if (levelCompleted[idx]) return "completed";
+    return "available";
+}
+
+/* The fully-expressed status label + icon used for nodes/details */
+function worldMapStatusInfo(idx) {
+    var status = worldMapStatus(idx);
+    if (status === "completed") return { status: "completed", icon: "\u2713", label: "COMPLETED" };
+    if (status === "available") return { status: "available", icon: "\u25B6", label: "AVAILABLE" };
+    return { status: "locked", icon: "\uD83D\uDD12", label: "LOCKED" };
+}
+
+/* Render the three level nodes connected by a vertical line */
+function renderWorldMapNodes(selectedIdx) {
+    var html = "";
+    for (var i = 0; i < LEVELS.length; i++) {
+        var status = worldMapStatus(i);
+        var info = LEVEL_INFO[i];
+        var stInfo = worldMapStatusInfo(i);
+
+        var cls = "wm-node " + status;
+        if (selectedIdx === i) cls += " selected";
+
+        html += '<div class="wm-node-wrap">';
+        html += '<div class="' + cls + '" data-wm-level="' + i + '">';
+        html += '<div class="wm-node-title">LEVEL ' + (i + 1) + '</div>';
+        html += '<div class="wm-node-diff ' + info.diffClass + '">' +
+                info.difficulty + '</div>';
+        html += '<span class="wm-node-status ' + stInfo.status + '">' +
+                stInfo.icon + ' ' + stInfo.label + '</span>';
+        html += '</div>';
+        /* Connecting line between nodes (hidden after the last) */
+        if (i < LEVELS.length - 1) {
+            html += '<div class="wm-connector"></div>';
+        }
+        html += '</div>';
+    }
+    worldMapNodesEl.innerHTML = html;
+
+    /* Attach click handlers via onclick (visited once per render, but
+       the node elements are freshly created so no duplicates can
+       accumulate on a single element). */
+    var nodes = worldMapNodesEl.querySelectorAll(".wm-node");
+    for (var n = 0; n < nodes.length; n++) {
+        (function(node) {
+            node.onclick = function() {
+                var idx = Number(node.getAttribute("data-wm-level"));
+                handleWorldMapNodeClick(idx);
+            };
+        })(nodes[n]);
+    }
+}
+
+/* Render the game progress summary panel */
+function renderWorldMapProgress() {
+    var completedCount = 0;
+    for (var i = 0; i < LEVELS.length; i++) {
+        if (levelCompleted[i]) completedCount++;
+    }
+    var achievementsUnlocked = 0;
+    for (var a = 0; a < ACHIEVEMENTS.length; a++) {
+        if (unlockedAchievements[ACHIEVEMENTS[a].id]) achievementsUnlocked++;
+    }
+
+    worldMapProgressEl.innerHTML =
+        '<h3>GAME PROGRESS</h3>' +
+        '<div class="wm-progress-row">Levels Completed: <b>' +
+        completedCount + ' / ' + LEVELS.length + '</b></div>' +
+        '<div class="wm-progress-row">Coins Collected: <b>' +
+        ACHIEV_STATS.coins + '</b></div>' +
+        '<div class="wm-progress-row">Enemies Defeated: <b>' +
+        ACHIEV_STATS.enemies + '</b></div>' +
+        '<div class="wm-progress-row">Highest Combo: <b>x' +
+        ACHIEV_STATS.highestCombo + '</b></div>' +
+        '<div class="wm-progress-row">Achievements: <b>' +
+        achievementsUnlocked + ' / ' + ACHIEVEMENTS.length + '</b></div>' +
+        '<div class="wm-progress-row">Best Score: <b>' +
+        savedHighScore + '</b></div>';
+}
+
+/* Show an empty (no node selected) details panel */
+function renderWorldMapDetailsEmpty() {
+    worldMapDetailsEl.innerHTML =
+        '<h3>LEVEL DETAILS</h3>' +
+        '<div class="wm-detail-empty">Select a level on the map to view its details</div>';
+}
+
+/* Show the details panel for a specific level node */
+function renderWorldMapDetails(idx) {
+    var info = LEVEL_INFO[idx];
+    var status = worldMapStatus(idx);
+    var stInfo = worldMapStatusInfo(idx);
+    var bestScore = levelBestScore[idx];
+    var bestCoins = levelBestCoins[idx];
+    var totalCoins = levelCoinCounts[idx];
+
+    var statusText = stInfo.icon + ' ' + stInfo.label;
+
+    worldMapDetailsEl.innerHTML =
+        '<h3>LEVEL DETAILS</h3>' +
+        '<div class="wm-detail-title">LEVEL ' + (idx + 1) + '</div>' +
+        '<div class="wm-detail-row"><b>DIFFICULTY:</b> ' + info.difficulty + '</div>' +
+        '<div class="wm-detail-row"><b>DESCRIPTION:</b> ' + info.desc + '</div>' +
+        '<div class="wm-detail-row"><b>BEST SCORE:</b> ' +
+        (bestScore > 0 ? bestScore : '--') + '</div>' +
+        '<div class="wm-detail-row"><b>BEST COINS:</b> ' +
+        (bestScore > 0 ? bestCoins + ' / ' + totalCoins : '--') + '</div>' +
+        '<div class="wm-detail-row"><b>STATUS:</b> <span class="wm-detail-status ' +
+        stInfo.status + '">' + statusText + '</span></div>' +
+        '<div class="wm-detail-buttons">';
+
+    if (status === "locked") {
+        worldMapDetailsEl.innerHTML +=
+            '<button class="wm-detail-btn back" id="wmDetailBack">BACK</button>';
+    } else {
+        worldMapDetailsEl.innerHTML +=
+            '<button class="wm-detail-btn play" id="wmDetailPlay">PLAY LEVEL</button>' +
+            '<button class="wm-detail-btn back" id="wmDetailBack">BACK</button>';
+    }
+    worldMapDetailsEl.innerHTML += '</div>';
+
+    /* Attach handlers to the freshly-created buttons */
+    var playBtn = document.getElementById("wmDetailPlay");
+    if (playBtn) playBtn.onclick = function() {
+        /* Viewing a completed level gives a little nod */
+        if (levelCompleted[idx]) sfxWorldMapSelect();
+        worldMapPlayLevel(idx);
+    };
+    var backBtn = document.getElementById("wmDetailBack");
+    backBtn.onclick = function() {
+        renderWorldMapDetailsEmpty();
+        renderWorldMapNodes(null);   /* deselect the nodes */
+        sfxWorldMapSelect();
+    };
+}
+
+/* A node was clicked: select it (unlocked) and show details */
+function handleWorldMapNodeClick(idx) {
+    if (!levelUnlocked[idx]) {
+        /* Locked: just a soft thud, cannot be selected */
+        playTone("square", 120, 0.1, 0.1);   /* muted */
+        return;
+    }
+
+    /* Successfully visited this node for WORLD EXPLORER tracking */
+    if (!worldExplorerVisited[idx]) {
+        worldExplorerVisited[idx] = true;
+        checkWorldExplorer();
+    }
+
+    sfxWorldMapSelect();
+    renderWorldMapNodes(idx);
+    renderWorldMapDetails(idx);
+}
+
+/* Track WORLD EXPLORER: visit all three nodes (once only) */
+function checkWorldExplorer() {
+    if (worldExplorerVisited[0] &&
+        worldExplorerVisited[1] &&
+        worldExplorerVisited[2]) {
+        unlockAchievement("worldExplorer");
+    }
+}
+
+/* Open the World Map, freezing all gameplay. Tracks how it was
+   opened so closing returns to the correct prior screen. */
+function openWorldMap(fromLevelSelect) {
+    worldMapFromLevelSelect = !!fromLevelSelect;
+    worldMapPrevState = gameState;
+    worldMapWasPaused = paused;
+
+    /* Close any overlay that is currently covering the game */
+    hidePauseMenu();
+    if (achievPanelEl && !achievPanelEl.classList.contains("hidden")) {
+        achievPanelEl.classList.add("hidden");
+    }
+    messageEl.style.display = "none";
+    levelSelectScreenEl.classList.add("hidden");
+
+    /* Freeze gameplay beneath the map */
+    if (!paused) {
+        paused = true;
+        pausedStartMs = performance.now();
+        game.classList.add("paused");
+        keys.left = false;
+        keys.right = false;
+        if (rafId !== null) {
+            cancelAnimationFrame(rafId);
+            rafId = null;
+        }
+        suspendPausableTimers();
+    }
+
+    gameState = "worldmap";
+
+    /* Increment the persistent World Map Visits statistic (once per open) */
+    addStat("worldMapVisits", 1);
+
+    sfxWorldMapOpen();
+    renderWorldMapProgress();
+    renderWorldMapNodes(null);
+    renderWorldMapDetailsEmpty();
+    worldMapScreenEl.classList.remove("hidden");
+}
+
+/* Close the World Map and return to the prior screen. The game
+   stays frozen (it never resumes gameplay on its own). */
+function closeWorldMap() {
+    worldMapScreenEl.classList.add("hidden");
+
+    /* Return to the Level Select screen */
+    if (worldMapFromLevelSelect) {
+        gameState = "levelselect";
+        renderLevelCards();
+        levelSelectScreenEl.classList.remove("hidden");
+        worldMapFromLevelSelect = false;
+        worldMapWasPaused = false;
+        worldMapPrevState = null;
+        return;
+    }
+
+    /* Return to the pause menu (game stays frozen) */
+    game.classList.add("paused");
+    paused = true;
+    gameState = worldMapPrevState || "playing";
+    showPauseMenu();
+    worldMapWasPaused = false;
+    worldMapPrevState = null;
+}
+
+/* Play a level from the World Map - reuses the existing
+   selectLevel() so there is only one level-loading system. */
+function worldMapPlayLevel(idx) {
+    if (!levelUnlocked[idx]) return;
+    worldMapScreenEl.classList.add("hidden");
+    worldMapFromLevelSelect = false;
+    worldMapPrevState = null;
+    worldMapWasPaused = false;
+    selectLevel(idx);
+}
+
+/* World Map buttons. onclick properties, wired once at startup. */
+worldMapCloseBtnEl.onclick = closeWorldMap;
+levelSelectWorldMapBtnEl.onclick = function() { openWorldMap(true); };
+pauseWorldMapBtnEl.onclick = function() { openWorldMap(false); };
+
+/* ============================================================
    DAY 13: ACHIEVEMENTS SYSTEM
 
    A central, persistent achievement and statistics system. Every
@@ -2553,7 +2843,8 @@ var ACHIEVEMENTS = [
     { id: "bossSlayer",   title: "BOSS SLAYER",   description: "Defeat the Level 3 boss." },
     { id: "speedrunner",  title: "SPEEDRUNNER",   description: "Complete the game." },
     { id: "highScorer",   title: "HIGH SCORER",   description: "Achieve a new personal high score." },
-    { id: "levelExplorer",title: "LEVEL EXPLORER",description: "Complete or replay all three levels." }
+    { id: "levelExplorer",title: "LEVEL EXPLORER",description: "Complete or replay all three levels." },
+    { id: "worldExplorer", title: "WORLD EXPLORER", description: "Open the World Map and visit all three level nodes." }
 ];
 
 /* Map id -> achievement for fast lookup */
@@ -2576,7 +2867,8 @@ var ACHIEV_STATS = {
     powerups: 0,
     gamesCompleted: 0,
     bosses: 0,
-    highestScore: 0
+    highestScore: 0,
+    worldMapVisits: 0
 };
 
 /* Load the unlocked achievement ids from localStorage, validating
@@ -2605,7 +2897,7 @@ function loadAchievements() {
 function loadAchievStats() {
     var result = {
         coins: 0, enemies: 0, highestCombo: 1, powerups: 0,
-        gamesCompleted: 0, bosses: 0, highestScore: 0
+        gamesCompleted: 0, bosses: 0, highestScore: 0, worldMapVisits: 0
     };
     try {
         var raw = window.localStorage.getItem(ACHIEV_STATS_KEY);
@@ -2789,6 +3081,7 @@ function renderAchievPanel() {
         '<div class="stat-row">Games Completed: <b>' + ACHIEV_STATS.gamesCompleted + '</b></div>' +
         '<div class="stat-row">Bosses Defeated: <b>' + ACHIEV_STATS.bosses + '</b></div>' +
         '<div class="stat-row">Highest Score: <b>' + ACHIEV_STATS.highestScore + '</b></div>' +
+        '<div class="stat-row">World Map Visits: <b>' + ACHIEV_STATS.worldMapVisits + '</b></div>' +
         '<div class="stat-row">Levels Completed: <b>' + levelsCompleted + '</b></div>' +
         '<div class="stat-row">Levels Replayed: <b>' + levelsReplayed + '</b></div>' +
         '<div class="stat-row">Best Score (L1): <b>' + levelBestScore[0] + '</b> | ' +
@@ -2814,7 +3107,7 @@ function resetAchievements() {
     unlockedAchievements = {};
     ACHIEV_STATS = {
         coins: 0, enemies: 0, highestCombo: 1, powerups: 0,
-        gamesCompleted: 0, bosses: 0, highestScore: 0
+        gamesCompleted: 0, bosses: 0, highestScore: 0, worldMapVisits: 0
     };
     try {
         window.localStorage.removeItem(ACHIEV_SAVE_KEY);

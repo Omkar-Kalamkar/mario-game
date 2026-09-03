@@ -2188,3 +2188,391 @@ body {
 #game.paused #levelSelectScreen * {
     animation-play-state: running;
 }
+
+/* ============================================================
+   DAY 15: WORLD MAP SCREEN
+   ============================================================ */
+
+/* ===== World Map overlay ===== */
+#worldMapScreen {
+    display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 126;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 22px;
+    background:
+        radial-gradient(circle at 50% 35%, rgba(34, 90, 40, 0.5), transparent 72%),
+        rgba(6, 12, 26, 0.96);
+}
+
+#worldMapScreen:not(.hidden) {
+    display: flex;
+    animation: overlayFade 0.3s ease-out;
+}
+
+#worldMapScreen h2 {
+    font-size: 34px;
+    color: #fff;
+    letter-spacing: 6px;
+    text-shadow: 3px 3px 0 #000, 0 0 20px rgba(255, 210, 63, 0.5);
+    margin-bottom: 0;
+}
+
+/* ===== Layout: nodes on the left, progress/detail on the right ===== */
+.worldmap-body {
+    display: flex;
+    gap: 24px;
+    justify-content: center;
+    align-items: stretch;
+    width: 100%;
+    max-width: 840px;
+    flex: 1;
+    min-height: 0;
+}
+
+/* ===== World Map nodes (vertical chain) ===== */
+.worldmap-nodes {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-around;
+    width: 320px;
+    flex-shrink: 0;
+}
+
+/* One level node with its connecting line below it */
+.wm-node-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* The node itself */
+.wm-node {
+    width: 190px;
+    border-radius: 14px;
+    padding: 10px 12px;
+    text-align: center;
+    cursor: pointer;
+    position: relative;
+    border: 2px solid #333;
+    background: linear-gradient(160deg, #1a1a2e 0%, #111122 100%);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4);
+    transition: transform 0.18s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+}
+
+/* Hover: only interactive when unlocked */
+.wm-node.locked {
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+.wm-node.unlocked {
+    border-color: #4a6fa5;
+    background: linear-gradient(160deg, #1e2a4a 0%, #16213e 100%);
+    cursor: pointer;
+}
+
+.wm-node.completed {
+    border-color: #22c55e;
+    box-shadow: 0 0 14px rgba(34, 197, 94, 0.35);
+}
+
+.wm-node.selected {
+    transform: scale(1.06);
+    border-color: #ffd23f;
+    box-shadow: 0 0 18px rgba(255, 210, 63, 0.5);
+}
+
+.wm-node.unlocked:hover {
+    transform: translateY(-3px) scale(1.03);
+    border-color: #ffd23f;
+    filter: brightness(1.1);
+}
+
+.wm-node.unlocked:active {
+    transform: scale(0.98);
+}
+
+/* Level number + difficulty inside each node */
+.wm-node-title {
+    font-size: 15px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    color: #ffd23f;
+    margin-bottom: 3px;
+}
+
+.wm-node.locked .wm-node-title {
+    color: #666;
+}
+
+.wm-node-diff {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    padding: 2px 12px;
+    border-radius: 9px;
+    margin-bottom: 4px;
+}
+
+.wm-node-diff.easy {
+    background: rgba(34, 197, 94, 0.2);
+    color: #4ade80;
+    border: 1px solid rgba(34, 197, 94, 0.4);
+}
+
+.wm-node-diff.medium {
+    background: rgba(255, 157, 46, 0.2);
+    color: #ff9d2e;
+    border: 1px solid rgba(255, 157, 46, 0.4);
+}
+
+.wm-node-diff.hard {
+    background: rgba(229, 37, 33, 0.2);
+    color: #ff6b6b;
+    border: 1px solid rgba(229, 37, 33, 0.4);
+}
+
+.wm-node.locked .wm-node-diff {
+    background: rgba(255, 255, 255, 0.05);
+    color: #555;
+    border: 1px solid #333;
+}
+
+/* Status line: LOCKED / AVAILABLE / COMPLETED */
+.wm-node-status {
+    font-size: 11px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    padding: 3px 10px;
+    border-radius: 8px;
+    display: inline-block;
+}
+
+.wm-node-status.locked {
+    background: rgba(255, 255, 255, 0.06);
+    color: #666;
+}
+
+.wm-node-status.available {
+    background: rgba(255, 157, 46, 0.18);
+    color: #ff9d2e;
+    animation: availPulse 2s ease-in-out infinite;
+}
+
+.wm-node-status.completed {
+    background: rgba(34, 197, 94, 0.22);
+    color: #4ade80;
+}
+
+/* Subtle pulse for available (unlocked-but-incomplete) nodes */
+@keyframes availPulse {
+    0%, 100% { box-shadow: 0 0 0 rgba(255, 157, 46, 0); }
+    50%      { box-shadow: 0 0 10px rgba(255, 157, 46, 0.5); }
+}
+
+/* ===== Connecting line between nodes ===== */
+.wm-connector {
+    width: 4px;
+    height: 26px;
+    background: linear-gradient(to bottom, #4a6fa5, #2a3f66);
+    border-radius: 2px;
+    margin: 4px 0;
+}
+
+/* The connector after the last node is hidden */
+.wm-node-wrap:last-child .wm-connector {
+    display: none;
+}
+
+/* ===== Progress summary panel ===== */
+.worldmap-side {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 280px;
+    flex-shrink: 0;
+}
+
+.worldmap-progress,
+.worldmap-details {
+    border-radius: 14px;
+    padding: 12px 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #c9d3ea;
+    text-align: left;
+}
+
+.worldmap-progress h3,
+.worldmap-details h3 {
+    font-size: 14px;
+    letter-spacing: 3px;
+    color: #ffd23f;
+    margin-bottom: 8px;
+    text-align: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 6px;
+}
+
+.wm-progress-row {
+    font-size: 13px;
+    padding: 2px 0;
+    display: flex;
+    justify-content: space-between;
+}
+
+.wm-progress-row b {
+    color: #ffd23f;
+}
+
+/* ===== Level detail panel ===== */
+.worldmap-details {
+    min-height: 150px;
+}
+
+.worldmap-details .wm-detail-empty {
+    color: #8890a8;
+    font-size: 13px;
+    text-align: center;
+    margin-top: 30px;
+}
+
+.wm-detail-title {
+    font-size: 18px;
+    font-weight: bold;
+    color: #ffd23f;
+    letter-spacing: 2px;
+    margin-bottom: 8px;
+    text-align: center;
+}
+
+.wm-detail-row {
+    font-size: 12px;
+    padding: 2px 0;
+    line-height: 1.4;
+}
+
+.wm-detail-row b {
+    color: #ffd23f;
+}
+
+.wm-detail-status {
+    font-size: 12px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    padding: 3px 10px;
+    border-radius: 8px;
+    display: inline-block;
+    margin-top: 4px;
+}
+
+.wm-detail-status.locked {
+    background: rgba(255, 255, 255, 0.06);
+    color: #666;
+}
+
+.wm-detail-status.available {
+    background: rgba(255, 157, 46, 0.18);
+    color: #ff9d2e;
+}
+
+.wm-detail-status.completed {
+    background: rgba(34, 197, 94, 0.22);
+    color: #4ade80;
+}
+
+.wm-detail-buttons {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 12px;
+}
+
+.wm-detail-btn {
+    padding: 9px 20px;
+    border: none;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    cursor: pointer;
+    color: #fff;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+    transition: transform 0.12s ease, filter 0.2s ease;
+}
+
+.wm-detail-btn:hover {
+    transform: scale(1.05);
+    filter: brightness(1.15);
+}
+
+.wm-detail-btn:active {
+    transform: scale(0.96);
+}
+
+.wm-detail-btn.play {
+    background: linear-gradient(to bottom, #22c55e, #15803d);
+    border-bottom: 4px solid #0e5729;
+}
+
+.wm-detail-btn.back {
+    background: linear-gradient(to bottom, #3a3a56, #262638);
+    border: 2px solid #4a4a66;
+    border-bottom: 4px solid #16161f;
+}
+
+/* ===== World Map buttons ===== */
+.ls-worldmap-btn {
+    margin-top: 4px;
+    padding: 9px 34px;
+    border: none;
+    border-radius: 12px;
+    background: linear-gradient(to bottom, #2e8f5b, #1e6a42);
+    border-bottom: 5px solid #123f28;
+    color: #fff;
+    font-size: 16px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+    transition: transform 0.12s ease, filter 0.2s ease;
+}
+
+.ls-worldmap-btn:hover {
+    transform: scale(1.05);
+    filter: brightness(1.15);
+}
+
+.ls-worldmap-btn:active {
+    transform: scale(0.97);
+}
+
+#pauseWorldMapBtn {
+    background: linear-gradient(to bottom, #2e8f5b, #1e6a42);
+    border: 2px solid #3fb578;
+    border-bottom: 5px solid #123f28;
+    font-size: 16px;
+    min-width: 250px;
+    color: #c9ffe0;
+}
+
+#pauseWorldMapBtn:hover {
+    filter: brightness(1.2);
+    border-color: #6adea0;
+}
+
+/* Keep World Map animated while game is frozen */
+#game.paused #worldMapScreen,
+#game.paused #worldMapScreen * {
+    animation-play-state: running;
+}
