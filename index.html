@@ -116,6 +116,7 @@
                 <button id="restartBtn" class="pause-menu-btn restart-btn">RESTART</button>
                 <button id="pauseSoundBtn" class="pause-menu-btn sound-btn">🔊 SOUND ON</button>
                 <button id="achievMenuBtn" class="pause-menu-btn achievements-btn">🏆 ACHIEVEMENTS</button>
+                <button id="missionMenuBtn" class="pause-menu-btn missions-btn">🎯 MISSIONS</button>
                 <button id="pauseLevelSelectBtn" class="pause-menu-btn levelselect-btn">🎯 LEVEL SELECT</button>
                 <button id="pauseWorldMapBtn" class="pause-menu-btn worldmap-btn">🗺 WORLD MAP</button>
                 <button id="resetRecordsBtn" class="pause-menu-btn reset-btn">♻ RESET RECORDS</button>
@@ -133,6 +134,17 @@
 
             <!-- Day 13: achievement popup notifications (top/right of game) -->
             <div id="achievPopups"></div>
+
+            <!-- Day 16: missions panel (opened from pause menu or other screens) -->
+            <div id="missionPanel" class="hidden">
+                <h2>MISSIONS</h2>
+                <div id="missionHeader" class="mission-header"></div>
+                <div id="missionList" class="mission-list"></div>
+                <button id="missionCloseBtn" class="mp-close-btn">CLOSE</button>
+            </div>
+
+            <!-- Day 16: mission completion toast notifications -->
+            <div id="missionNotices"></div>
 
             <!-- Day 14: Level Select screen -->
             <div id="levelSelectScreen" class="hidden">

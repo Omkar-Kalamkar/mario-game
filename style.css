@@ -2576,3 +2576,365 @@ body {
 #game.paused #worldMapScreen * {
     animation-play-state: running;
 }
+
+/* ============================================================
+   DAY 16: MISSION & CHALLENGE SYSTEM
+   ============================================================ */
+
+/* Small mission progress line on each World Map node */
+.wm-node-missions {
+    margin-top: 6px;
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: #9aa7c7;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding-top: 4px;
+}
+
+.wm-node.locked .wm-node-missions {
+    color: #555;
+}
+
+/* "Missions: x / y" value inside the Level Select card */
+.lc-stats .mission-lc {
+    color: #ffd23f;
+}
+
+/* World Map "VIEW MISSIONS" detail button */
+.wm-detail-btn.missions {
+    background: linear-gradient(to bottom, #5b2cb0, #3a1a78);
+    border: 2px solid #7b4cc6;
+    border-bottom: 4px solid #2a1156;
+    color: #e6dcff;
+}
+
+.wm-detail-btn.missions:hover {
+    border-color: #c9a5ff;
+}
+
+/* Pause menu: missions button */
+#missionMenuBtn {
+    background: linear-gradient(to bottom, #b8860b, #8a6500);
+    border: 2px solid #d4a73a;
+    border-bottom: 5px solid #5d4400;
+    font-size: 16px;
+    min-width: 250px;
+    color: #fff3c4;
+}
+
+#missionMenuBtn:hover {
+    filter: brightness(1.2);
+    border-color: #ffe08a;
+}
+
+/* ===== Missions panel (opens over a frozen game) ===== */
+#missionPanel {
+    display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 140;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    padding: 18px 22px;
+    background:
+        radial-gradient(circle at 50% 38%, rgba(120, 90, 30, 0.45), transparent 72%),
+        rgba(8, 6, 22, 0.94);
+}
+
+#missionPanel:not(.hidden) {
+    display: flex;
+    animation: overlayFade 0.3s ease-out;
+}
+
+#missionPanel h2 {
+    font-size: 40px;
+    color: #fff;
+    letter-spacing: 6px;
+    text-shadow: 3px 3px 0 #000, 0 0 20px rgba(255, 210, 63, 0.55);
+    margin-bottom: 0;
+}
+
+.mission-header {
+    text-align: center;
+}
+
+.mp-level {
+    font-size: 15px;
+    font-weight: bold;
+    letter-spacing: 3px;
+    color: #ffd23f;
+}
+
+.mp-counter {
+    font-size: 14px;
+    letter-spacing: 2px;
+    color: #c9c9de;
+    margin-top: 2px;
+}
+
+/* Scrollable list of mission cards */
+.mission-list {
+    width: 100%;
+    max-width: 560px;
+    max-height: 58%;
+    overflow-y: auto;
+    padding: 4px;
+}
+
+.mission-list::-webkit-scrollbar {
+    width: 8px;
+}
+.mission-list::-webkit-scrollbar-thumb {
+    background: #555;
+    border-radius: 4px;
+}
+
+.mission-empty {
+    color: #8890a8;
+    text-align: center;
+    padding: 24px;
+}
+
+/* One mission card */
+.mission-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 14px;
+    border-radius: 11px;
+    margin-bottom: 7px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    text-align: left;
+}
+
+/* Completed missions are clearly highlighted */
+.mission-card.completed {
+    border-color: #22c55e;
+    background: rgba(34, 197, 94, 0.1);
+    box-shadow: 0 0 12px rgba(34, 197, 94, 0.25);
+}
+
+.mission-card.failed {
+    border-color: #e52521;
+    background: rgba(229, 37, 33, 0.08);
+    opacity: 0.75;
+}
+
+.mission-icon {
+    font-size: 24px;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.mission-card.completed .mission-icon {
+    color: #4ade80;
+}
+
+.mission-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.mission-name {
+    font-weight: bold;
+    letter-spacing: 1px;
+    font-size: 15px;
+    color: #fff;
+}
+
+.mission-card.completed .mission-name {
+    color: #4ade80;
+}
+
+.mission-desc {
+    font-size: 12px;
+    color: #c9d3ea;
+}
+
+.mission-progress {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 5px;
+}
+
+.mp-bar {
+    flex: 1;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+.mp-fill {
+    display: block;
+    height: 100%;
+    background: linear-gradient(to right, #ffd23f, #e07b00);
+    border-radius: 5px;
+    transition: width 0.3s ease;
+}
+
+.mission-card.completed .mp-fill {
+    background: linear-gradient(to right, #22c55e, #15803d);
+}
+
+.mp-text {
+    font-size: 12px;
+    font-weight: bold;
+    color: #ffd23f;
+    white-space: nowrap;
+    min-width: 44px;
+    text-align: right;
+}
+
+.mission-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.mission-reward {
+    font-size: 14px;
+    font-weight: bold;
+    color: #4ade80;
+    letter-spacing: 1px;
+}
+
+.mission-state {
+    font-size: 10px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    padding: 2px 8px;
+    border-radius: 8px;
+    white-space: nowrap;
+}
+
+.mission-card.completed .mission-state {
+    background: rgba(34, 197, 94, 0.2);
+    color: #4ade80;
+}
+
+.mission-card.failed .mission-state {
+    background: rgba(229, 37, 33, 0.2);
+    color: #ff6b6b;
+}
+
+.mission-card.progress .mission-state {
+    background: rgba(255, 157, 46, 0.16);
+    color: #ff9d2e;
+}
+
+.mission-card.fresh .mission-state {
+    background: rgba(255, 255, 255, 0.08);
+    color: #888;
+}
+
+/* Close button for the missions panel */
+.mp-close-btn {
+    margin-top: 6px;
+    padding: 10px 40px;
+    border: none;
+    border-radius: 12px;
+    background: linear-gradient(to bottom, #22c55e, #15803d);
+    border-bottom: 5px solid #0e5729;
+    color: #fff;
+    font-size: 18px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    cursor: pointer;
+    box-shadow: 0 5px 14px rgba(0, 0, 0, 0.45);
+    transition: transform 0.12s ease, filter 0.2s ease;
+}
+
+.mp-close-btn:hover {
+    transform: scale(1.06);
+    filter: brightness(1.15);
+}
+
+.mp-close-btn:active {
+    transform: scale(0.97);
+}
+
+/* Keep the missions panel animated even while the game is frozen */
+#game.paused #missionPanel,
+#game.paused #missionPanel * {
+    animation-play-state: running;
+}
+
+/* ===== Mission completion toast notifications (top/center) ===== */
+#missionNotices {
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    z-index: 95;
+    pointer-events: none;
+    width: 300px;
+}
+
+.mission-notice {
+    width: 100%;
+    padding: 10px 16px;
+    border-radius: 12px;
+    text-align: center;
+    background: linear-gradient(to bottom, #3a2a08, #2a1c05);
+    border: 2px solid #ffd23f;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5), 0 0 16px rgba(255, 210, 63, 0.4);
+    color: #fff;
+}
+
+.mission-notice .mn-title {
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: #ffd23f;
+    font-weight: bold;
+}
+
+.mission-notice .mn-trophy {
+    font-size: 22px;
+    line-height: 1;
+}
+
+.mission-notice .mn-name {
+    font-size: 16px;
+    font-weight: bold;
+    letter-spacing: 1px;
+}
+
+.mission-notice .mn-reward {
+    font-size: 15px;
+    font-weight: bold;
+    color: #4ade80;
+    margin-top: 2px;
+}
+
+.mission-notice.in {
+    animation: mnIn 0.45s ease-out;
+}
+
+.mission-notice.out {
+    animation: mnOut 0.4s ease-in forwards;
+}
+
+@keyframes mnIn {
+    from { opacity: 0; transform: translateY(-18px) scale(0.9); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes mnOut {
+    from { opacity: 1; transform: translateY(0) scale(1); }
+    to   { opacity: 0; transform: translateY(-18px) scale(0.9); }
+}
+
