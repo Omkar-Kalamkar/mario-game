@@ -316,6 +316,12 @@ function sfxMissionComplete() {
     }
 }
 
+/* Day 16: gentle two-note cue when a level attempt with missions starts */
+function sfxMissionStart() {
+    playTone("sine", 660, 0.08, 0.15);
+    setTimeout(function() { playTone("sine", 880, 0.1, 0.16); }, 80);
+}
+
 /* --- Sound toggle (HUD button + pause menu share one handler).
    onclicks are used instead of addEventListener so a button can
    never collect duplicate listeners. --- */
@@ -3216,7 +3222,7 @@ resetAchievBtnEl.onclick = resetAchievements;
 
    MISSION TYPES: COINS, ENEMIES, TIME, COMBO, NO_DEATH,
    LEVEL_COMPLETE. New types can be added by extending the
-   switch in missionProgress() and progressMissionByType().
+   switch in missionProgressText() and progressMissionByType().
    ============================================================ */
 
 /* A mission is an object:
@@ -3232,17 +3238,20 @@ resetAchievBtnEl.onclick = resetAchievements;
 var MISSIONS_LIST = {
     0: [
         { id: "level1_coins",    title: "Coin Collector",
-          description: "Collect 5 coins in Level 1.",
+          description: "Collect all 5 coins in Level 1.",
           type: "COINS", target: 5, reward: 150 },
         { id: "level1_enemies",  title: "Enemy Stomper",
           description: "Defeat 2 enemies in Level 1.",
           type: "ENEMIES", target: 2, reward: 200 },
-        { id: "level1_nodamage", title: "Nimble",
-          description: "Finish Level 1 without losing a life.",
-          type: "NO_DEATH", target: null, reward: 300 },
+        { id: "level1_complete", title: "Goal Reacher",
+          description: "Finish Level 1.",
+          type: "LEVEL_COMPLETE", target: null, reward: 150 },
         { id: "level1_speed",    title: "Speedy",
           description: "Finish Level 1 within 60 seconds.",
-          type: "TIME", target: 60, reward: 250 }
+          type: "TIME", target: 60, reward: 250 },
+        { id: "level1_nodamage", title: "Nimble",
+          description: "Finish Level 1 without losing a life.",
+          type: "NO_DEATH", target: null, reward: 300 }
     ],
     1: [
         { id: "level2_coins",    title: "Coin Collector",
@@ -3276,10 +3285,7 @@ var MISSIONS_LIST = {
           type: "TIME", target: 90, reward: 400 },
         { id: "level3_nodamage", title: "Flawless",
           description: "Finish Level 3 without losing a life.",
-          type: "NO_DEATH", target: null, reward: 500 },
-        { id: "level3_win",      title: "Seasoned Hero",
-          description: "Finish Level 3 and defeat the boss.",
-          type: "LEVEL_COMPLETE", target: null, reward: 300 }
+          type: "NO_DEATH", target: null, reward: 500 }
     ]
 };
 
@@ -3337,12 +3343,14 @@ function isMissionCompleted(lvl, id) {
 
 /* Reset the temporary attempt progress for the current level. Called
    from loadLevel on every new attempt. Persistent completion is
-   deliberately never touched here. */
+   deliberately never touched here. A small "MISSION STARTED" toast is
+   shown only when at least one mission is still incomplete. */
 function startMissionTracking() {
     missionLevel = currentLevelIndex;
     attemptEnemies = 0;
     attemptTime = 0;
     attemptNoDeath = true;
+    notifyMissionStart();
 }
 
 /* How far the current attempt has progressed for a mission. Returns
@@ -3359,9 +3367,9 @@ function missionCurrentValue(m) {
     if (!viewingCurrentLevel()) return 0;
     switch (m.type) {
         case "COINS": return coinCount;
-        case "ENEMIES": return Math.min(attemptEnemies, m.target);
-        case "COMBO": return Math.min(combo, m.target);
-        case "TIME": return Math.min(Math.floor(attemptTime / 1000), m.target);
+        case "ENEMIES": return attemptEnemies;
+        case "COMBO": return combo;
+        case "TIME": return Math.floor(attemptTime / 1000);
         default: return 0;
     }
 }
@@ -3375,6 +3383,14 @@ function missionProgressText(m) {
     if (m.type === "LEVEL_COMPLETE") {
         return isMissionCompleted(missionLevel, m.id) ? "Done" : "Pending";
     }
+    if (m.type === "TIME") {
+        if (isMissionCompleted(missionLevel, m.id)) return "Done";
+        if (viewingCurrentLevel() && (attemptTime / 1000) > m.target) return "FAILED";
+        return missionCurrentValue(m) + "s / " + m.target + "s";
+    }
+    /* Completed counting missions always read as fully achieved even
+       after a fresh attempt resets the live counters */
+    if (isMissionCompleted(missionLevel, m.id)) return m.target + " / " + m.target;
     return missionCurrentValue(m) + " / " + m.target;
 }
 
@@ -3393,6 +3409,12 @@ function missionState(m) {
         return (viewingCurrentLevel() && !attemptNoDeath) ? "failed" : "progress";
     }
     if (m.type === "LEVEL_COMPLETE") return "progress";
+    /* A TIME mission misses its mark the moment the attempt runs over its
+       target; it can still be earned on the next attempt. */
+    if (m.type === "TIME") {
+        return (viewingCurrentLevel() && (attemptTime / 1000) > m.target)
+            ? "failed" : "progress";
+    }
     if (missionCurrentValue(m) > 0) return "progress";
     return "fresh";
 }
@@ -3433,7 +3455,9 @@ function finalizeMission(m) {
 
 /* Called whenever a counting mission's progress may have advanced.
    Iterates the current level's missions of the given type and
-   finalizes any whose target has now been reached. */
+   finalizes any whose target has now been reached. TIME missions are
+   NOT finalized here - they only count when the level is finished
+   within the target (see finalizeLevelEndMissions). */
 function progressMissionByType(type) {
     var defs = MISSIONS_LIST[currentLevelIndex];
     if (!defs) return;
@@ -3446,7 +3470,6 @@ function progressMissionByType(type) {
             case "COINS":   done = coinCount >= m.target; break;
             case "ENEMIES": done = attemptEnemies >= m.target; break;
             case "COMBO":   done = combo >= m.target; break;
-            case "TIME":    done = (attemptTime / 1000) >= m.target; break;
         }
         if (done) finalizeMission(m);
     }
@@ -3457,7 +3480,6 @@ function progressMissionByType(type) {
 function trackMissionTime(dt) {
     if (dt > 0) {
         attemptTime += dt;
-        progressMissionByType("TIME");
     }
 }
 
@@ -3467,8 +3489,10 @@ function failNoDeathMissions() {
     attemptNoDeath = false;
 }
 
-/* Finalize end-of-level missions (NO_DEATH + LEVEL_COMPLETE) once the
-   player reaches the goal. Called from completeLevel(). */
+/* Finalize end-of-level missions (LEVEL_COMPLETE, NO_DEATH and TIME)
+   once the player reaches the goal. Called from completeLevel().
+   TIME missions only count when the level WAS finished within the
+   target; a slow finish simply leaves the mission for a later attempt. */
 function finalizeLevelEndMissions() {
     var defs = MISSIONS_LIST[currentLevelIndex];
     if (!defs) return;
@@ -3478,6 +3502,8 @@ function finalizeLevelEndMissions() {
         if (m.type === "LEVEL_COMPLETE") {
             finalizeMission(m);
         } else if (m.type === "NO_DEATH" && attemptNoDeath) {
+            finalizeMission(m);
+        } else if (m.type === "TIME" && (attemptTime / 1000) <= m.target) {
             finalizeMission(m);
         }
     }
@@ -3501,7 +3527,8 @@ function getMissionCompletedCount() {
         if (missionCompleted.hasOwnProperty(lvl) && missionCompleted[lvl]) {
             for (var id in missionCompleted[lvl]) {
                 if (missionCompleted[lvl].hasOwnProperty(id) &&
-                    missionCompleted[lvl][id]) {
+                    missionCompleted[lvl][id] &&
+                    missionDefined(lvl, id)) {
                     total++;
                 }
             }
@@ -3514,11 +3541,26 @@ function missionsCompletedForLevel(lvl) {
     if (!missionCompleted[lvl]) return 0;
     var n = 0;
     for (var id in missionCompleted[lvl]) {
-        if (missionCompleted[lvl].hasOwnProperty(id) && missionCompleted[lvl][id]) {
+        if (missionCompleted[lvl].hasOwnProperty(id) &&
+            missionCompleted[lvl][id] &&
+            missionDefined(lvl, id)) {
             n++;
         }
     }
     return n;
+}
+
+/* A mission id only counts while its definition still exists in the
+   MISSIONS_LIST. Stale ids from older saves are ignored, so every
+   counter and the MISSION MASTER achievement always agree with the
+   current mission list. */
+function missionDefined(lvl, id) {
+    var defs = MISSIONS_LIST[lvl];
+    if (!defs) return false;
+    for (var i = 0; i < defs.length; i++) {
+        if (defs[i].id === id) return true;
+    }
+    return false;
 }
 
 /* MISSION MASTER: all missions across every level are complete. */
@@ -3529,15 +3571,42 @@ function checkMissionMaster() {
     }
 }
 
-/* ---- Mission completion toast notifications (queued) ---- */
+/* ---- Mission toast notifications (queued) ---- */
 
 var missionNoticeQueue = [];
 var missionNoticeShowing = false;
 
+/* Enqueue a MISSION COMPLETE toast. Skips when the run has already
+   fully ended (the unlock itself still persists). */
 function queueMissionNotice(m) {
     if (gameState === "gameover" || gameState === "win") return;
-    missionNoticeQueue.push(m);
+    missionNoticeQueue.push({
+        start: false,
+        title: m.title,
+        reward: m.reward
+    });
     if (!missionNoticeShowing) nextMissionNotice();
+}
+
+/* Short, quiet toast shown when a level attempt begins, but only
+   while at least one mission is still incomplete - a player with
+   nothing left to chase is never bothered. */
+function notifyMissionStart() {
+    var defs = MISSIONS_LIST[currentLevelIndex];
+    if (!defs) return;
+    var remaining = 0;
+    for (var i = 0; i < defs.length; i++) {
+        if (!isMissionCompleted(currentLevelIndex, defs[i].id)) remaining++;
+    }
+    if (remaining === 0) return;
+
+    missionNoticeQueue.push({
+        start: true,
+        title: "Level " + (currentLevelIndex + 1),
+        remaining: remaining
+    });
+    if (!missionNoticeShowing) nextMissionNotice();
+    sfxMissionStart();
 }
 
 function nextMissionNotice() {
@@ -3546,14 +3615,22 @@ function nextMissionNotice() {
         return;
     }
     missionNoticeShowing = true;
-    var m = missionNoticeQueue.shift();
+    var n = missionNoticeQueue.shift();
     var el = document.createElement("div");
-    el.className = "mission-notice in";
-    el.innerHTML =
-        '<div class="mn-title">MISSION COMPLETE!</div>' +
-        '<div class="mn-trophy">\uD83C\uDFC6</div>' +
-        '<div class="mn-name">' + m.title + '</div>' +
-        '<div class="mn-reward">+' + m.reward + '</div>';
+    el.className = "mission-notice in" + (n.start ? " started" : "");
+    if (n.start) {
+        el.innerHTML =
+            '<div class="mn-title">MISSION STARTED</div>' +
+            '<div class="mn-name">' + n.title + '</div>' +
+            '<div class="mn-reward">' + n.remaining + ' mission' +
+                (n.remaining === 1 ? "" : "s") + ' left</div>';
+    } else {
+        el.innerHTML =
+            '<div class="mn-title">MISSION COMPLETE!</div>' +
+            '<div class="mn-trophy">\uD83C\uDFC6</div>' +
+            '<div class="mn-name">' + n.title + '</div>' +
+            '<div class="mn-reward">+' + n.reward + '</div>';
+    }
     missionNoticesEl.appendChild(el);
 
     setTimeout(function() {
@@ -3668,12 +3745,17 @@ function gameLoop() {
     if (paused || gameState !== "playing") { rafId = null; return; }
 
     /* Day 16: accumulate real playing time for TIME missions. The loop
-       is frozen while paused, so this naturally excludes paused time. */
+       is frozen while paused, so this naturally excludes paused time.
+       Extra-long gaps (hidden tab, browser throttling) are clamped so
+       an idle tab never counts as playing time. */
     var now = performance.now();
     if (lastLoopTime === 0) lastLoopTime = now;
     var dt = now - lastLoopTime;
     lastLoopTime = now;
-    if (dt > 0) trackMissionTime(dt);
+    if (dt > 0) {
+        if (dt > 250) dt = 250;
+        trackMissionTime(dt);
+    }
 
     /* Update moving platforms */
     for (var i = 0; i < movingPlatforms.length; i++) {

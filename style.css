@@ -2924,6 +2924,18 @@ body {
     animation: mnIn 0.45s ease-out;
 }
 
+/* Quiet "MISSION STARTED" variant: green trim instead of gold so it
+   reads as informational, never as a reward */
+.mission-notice.started {
+    background: linear-gradient(to bottom, #0b2a22, #08201a);
+    border-color: #6adea0;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5), 0 0 14px rgba(106, 222, 160, 0.3);
+}
+
+.mission-notice.started .mn-title {
+    color: #6adea0;
+}
+
 .mission-notice.out {
     animation: mnOut 0.4s ease-in forwards;
 }
