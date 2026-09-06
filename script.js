@@ -1368,6 +1368,12 @@ document.addEventListener("keydown", function(e) {
             closeMissionPanel();
             return;
         }
+        /* Day 17: if the Challenge screen is open, Escape closes it
+           back to Level Select / World Map (keeps gameplay frozen) */
+        if (!challengeScreenEl.classList.contains("hidden")) {
+            closeChallengeScreen();
+            return;
+        }
         /* Day 15: if the World Map is open, Escape closes it back to
            its prior screen (keeps gameplay frozen), it does NOT unpause */
         if (gameState === "worldmap" &&
@@ -1589,6 +1595,23 @@ function completeLevel() {
        boss is alive the final goal stays locked */
     if (bossData && bossData.alive) return;
 
+    /* Day 17: in Challenge Mode reaching the goal ends the challenge.
+       TIME / PERFECT need to beat the clock, NO_DEATH just needs the
+       goal, and counting objectives must already be met. */
+    if (challengeActive && challengePhase === "running") {
+        var chOk = false;
+        if (challenge.type === "TIME" || challenge.type === "PERFECT") {
+            chOk = (challengeElapsedMs / 1000) <= challenge.target;
+        } else if (challenge.type === "NO_DEATH") {
+            chOk = true;
+        } else {
+            chOk = challengeObjectiveMet();
+        }
+        if (chOk) finishChallenge();
+        else failChallenge("The challenge target was not met.");
+        return;
+    }
+
     gameWon = true;
 
     /* Day 14: save per-level statistics */
@@ -1648,6 +1671,17 @@ function completeLevel() {
 function killPlayer() {
     if (isDying || gameOver || gameWon) return;   /* one life per death */
 
+    /* Day 17: no-death (SURVIVAL / PERFECT) challenges fail the
+       moment a life is lost */
+    if (challengeActive && challengePhase === "running" &&
+        (challenge.type === "NO_DEATH" || challenge.type === "PERFECT")) {
+        lives--;
+        renderLives();
+        flashLives();
+        failChallenge("You lost a life.");
+        return;
+    }
+
     isDying = true;
     lives--;
     gameState = "dying";
@@ -1683,6 +1717,12 @@ function killPlayer() {
         isDying = false;
         sfxGameOver();
         renderRecords();
+        /* Day 17: a challenge ends with a failed screen, not the
+           normal GAME OVER overlay (progress is not deleted) */
+        if (challengeActive && challengePhase === "running") {
+            failChallenge("You ran out of lives.");
+            return;
+        }
         showMessage(
             "GAME OVER",
             "SCORE: " + score + "  |  HIGH SCORE: " + savedHighScore +
@@ -2112,7 +2152,15 @@ function togglePause() {
 /* PAUSE button in the HUD and the pause menu buttons */
 pauseBtnEl.onclick = togglePause;
 resumeBtnEl.onclick = togglePause;
-restartBtnEl.onclick = restartGame;
+/* Day 17: during a challenge, pausing and pressing RESTART restarts
+   the same challenge instead of dropping into normal Level 1 */
+restartBtnEl.onclick = function() {
+    if (challengeActive && challengePhase === "running") {
+        startChallenge();
+    } else {
+        restartGame();
+    }
+};
 
 /* ============================================================
    DAY 10: PERSISTENT RECORDS (HIGH SCORE + BEST LEVEL)
@@ -2193,6 +2241,7 @@ function renderRecords() {
    refresh the HUD and play the "NEW RECORD!" animation. Called
    after every scoring event. */
 function updateHighScore() {
+    if (challengeActive) return;   /* Day 17: challenge runs never touch the record */
     if (score > savedHighScore) {
         savedHighScore = score;
         newHighAwarded = true;
@@ -2214,6 +2263,7 @@ function updateHighScore() {
    level begins. Never lowers the best level and never records a
    level the player has not actually started. */
 function updateBestLevel() {
+    if (challengeActive) return;   /* Day 17: challenge runs never touch best level */
     var reached = currentLevelIndex + 1;   /* current level is 1-based */
     if (reached > savedBestLevel) {
         savedBestLevel = reached;
@@ -2496,6 +2546,11 @@ function closeLevelSelect() {
 
 function selectLevel(levelIdx) {
     if (!levelUnlocked[levelIdx]) return;
+
+    /* Day 17: starting a normal level silently ends any active
+       challenge run. Nothing is recorded besides the attempt that
+       was already counted when the challenge started. */
+    endChallengeSilent();
 
     sfxLevelSelect();
 
@@ -2835,6 +2890,8 @@ function openWorldMap(fromLevelSelect) {
     addStat("worldMapVisits", 1);
 
     sfxWorldMapOpen();
+    /* Day 17: refresh the special Challenge Mode bar */
+    updateWorldMapChallengeBar();
     renderWorldMapProgress();
     renderWorldMapNodes(null);
     renderWorldMapDetailsEmpty();
@@ -2912,7 +2969,9 @@ var ACHIEVEMENTS = [
     { id: "highScorer",   title: "HIGH SCORER",   description: "Achieve a new personal high score." },
     { id: "levelExplorer",title: "LEVEL EXPLORER",description: "Complete or replay all three levels." },
     { id: "worldExplorer", title: "WORLD EXPLORER", description: "Open the World Map and visit all three level nodes." },
-    { id: "missionMaster", title: "MISSION MASTER", description: "Complete every mission across all three levels." }
+    { id: "missionMaster", title: "MISSION MASTER", description: "Complete every mission across all three levels." },
+    { id: "challengeChampion", title: "CHALLENGE CHAMPION", description: "Complete 3 Challenge Mode challenges." },
+    { id: "challengeMaster", title: "CHALLENGE MASTER", description: "Complete 5 Challenge Mode challenges." }
 ];
 
 /* Map id -> achievement for fast lookup */
@@ -2966,7 +3025,10 @@ function loadAchievStats() {
     var result = {
         coins: 0, enemies: 0, highestCombo: 1, powerups: 0,
         gamesCompleted: 0, bosses: 0, highestScore: 0, worldMapVisits: 0,
-        missionsCompleted: 0
+        missionsCompleted: 0,
+        /* Day 17: challenge statistics */
+        challengesAttempted: 0, challengesCompleted: 0,
+        bestChallengeScore: 0, fastestChallengeTime: 0
     };
     try {
         var raw = window.localStorage.getItem(ACHIEV_STATS_KEY);
@@ -3027,6 +3089,12 @@ function setStatMax(key, value) {
    notification. */
 function unlockAchievement(id) {
     if (!ACHIEVEMENT_MAP[id]) return;
+    /* Day 17: a challenge run never earns the regular achievements
+       (coins, combos, boss, level, high score...). The two Challenge
+       Mode achievements are the only exceptions - they are awarded
+       from checkChallengeAchievements() while the run is wrapping up. */
+    if (challengeActive &&
+        id !== "challengeChampion" && id !== "challengeMaster") return;
     if (unlockedAchievements[id]) return;   /* never award twice */
 
     unlockedAchievements[id] = true;
@@ -3151,6 +3219,21 @@ function renderAchievPanel() {
         '<div class="stat-row">Bosses Defeated: <b>' + ACHIEV_STATS.bosses + '</b></div>' +
         '<div class="stat-row">Highest Score: <b>' + ACHIEV_STATS.highestScore + '</b></div>' +
         '<div class="stat-row">World Map Visits: <b>' + ACHIEV_STATS.worldMapVisits + '</b></div>' +
+        '<div class="stat-row">Challenges Attempted: <b>' +
+            ACHIEV_STATS.challengesAttempted + '</b></div>' +
+        '<div class="stat-row">Challenges Completed: <b>' +
+            ACHIEV_STATS.challengesCompleted + '</b></div>' +
+        '<div class="stat-row">Challenge Completion Rate: <b>' +
+            (ACHIEV_STATS.challengesAttempted > 0
+                ? Math.round((ACHIEV_STATS.challengesCompleted /
+                              ACHIEV_STATS.challengesAttempted) * 100) : 0) +
+            '%</b></div>' +
+        '<div class="stat-row">Best Challenge Score: <b>' +
+            (ACHIEV_STATS.bestChallengeScore || "--") + '</b></div>' +
+        '<div class="stat-row">Fastest Challenge: <b>' +
+            (ACHIEV_STATS.fastestChallengeTime
+                ? ACHIEV_STATS.fastestChallengeTime.toFixed(1) + "s" : "--") +
+            '</b></div>' +
         '<div class="stat-row">Levels Completed: <b>' + levelsCompleted + '</b></div>' +
         '<div class="stat-row">Levels Replayed: <b>' + levelsReplayed + '</b></div>' +
         '<div class="stat-row">Missions Completed (total): <b>' +
@@ -3184,7 +3267,9 @@ function resetAchievements() {
     ACHIEV_STATS = {
         coins: 0, enemies: 0, highestCombo: 1, powerups: 0,
         gamesCompleted: 0, bosses: 0, highestScore: 0, worldMapVisits: 0,
-        missionsCompleted: 0
+        missionsCompleted: 0,
+        challengesAttempted: 0, challengesCompleted: 0,
+        bestChallengeScore: 0, fastestChallengeTime: 0
     };
     try {
         window.localStorage.removeItem(ACHIEV_SAVE_KEY);
@@ -3346,6 +3431,7 @@ function isMissionCompleted(lvl, id) {
    deliberately never touched here. A small "MISSION STARTED" toast is
    shown only when at least one mission is still incomplete. */
 function startMissionTracking() {
+    if (challengeActive) return;   /* Day 17: missions stay out of challenge runs */
     missionLevel = currentLevelIndex;
     attemptEnemies = 0;
     attemptTime = 0;
@@ -3459,6 +3545,7 @@ function finalizeMission(m) {
    NOT finalized here - they only count when the level is finished
    within the target (see finalizeLevelEndMissions). */
 function progressMissionByType(type) {
+    if (challengeActive) return;   /* Day 17: no mission progress in challenge mode */
     var defs = MISSIONS_LIST[currentLevelIndex];
     if (!defs) return;
     for (var i = 0; i < defs.length; i++) {
@@ -3478,6 +3565,7 @@ function progressMissionByType(type) {
 /* Track the elapsed real-play time for TIME missions. dt is the
    ms since the last playing frame. */
 function trackMissionTime(dt) {
+    if (challengeActive) return;   /* Day 17 */
     if (dt > 0) {
         attemptTime += dt;
     }
@@ -3486,6 +3574,7 @@ function trackMissionTime(dt) {
 /* Mark the current attempt's NO_DEATH mission(s) as failed after a
    life is lost. Nothing is persisted for a failure. */
 function failNoDeathMissions() {
+    if (challengeActive) return;   /* Day 17 */
     attemptNoDeath = false;
 }
 
@@ -3494,6 +3583,7 @@ function failNoDeathMissions() {
    TIME missions only count when the level WAS finished within the
    target; a slow finish simply leaves the mission for a later attempt. */
 function finalizeLevelEndMissions() {
+    if (challengeActive) return;   /* Day 17 */
     var defs = MISSIONS_LIST[currentLevelIndex];
     if (!defs) return;
     for (var i = 0; i < defs.length; i++) {
@@ -3730,6 +3820,538 @@ missionCloseBtnEl.onclick = closeMissionPanel;
 // (mission panel animations are re-enabled by #game.paused rules in CSS)
 
 
+/* ============================================================
+   DAY 17: CHALLENGE MODE
+
+   A separate Challenge Mode layered on top of the normal levels.
+   Every day a single challenge is picked deterministically from
+   the local date (no backend, no network - works over file://).
+   Challenges reuse the existing LEVELS, physics, enemies, boss
+   and HUD; the run is driven entirely by the existing game loop,
+   so there is no second animation loop, no new intervals and no
+   duplicate listeners.
+
+   Design rules:
+     - Challenge runs never touch the persistent high score, best
+       level, level unlocks, level best scores or level missions.
+     - The only persistent data written is each challenge's best
+       result (challengeRecords) plus the challenge statistics
+       inside ACHIEV_STATS. Every read/write is guarded so missing
+       or corrupt storage falls back to safe defaults.
+     - The challenge clock only ticks inside gameLoop while the
+       state is "playing", so pausing (which freezes the loop and
+       resets its frame clock) freezes and resumes the challenge
+       clock correctly with no extra machinery.
+   ============================================================ */
+
+/* Challenge screen / HUD elements */
+var challengeScreenEl = document.getElementById("challengeScreen");
+var challengeCardEl = document.getElementById("challengeCard");
+var challengeStatsEl = document.getElementById("challengeStats");
+var challengeStartBtnEl = document.getElementById("challengeStartBtn");
+var challengeBackBtnEl = document.getElementById("challengeBackBtn");
+var challengeHudEl = document.getElementById("challengeHud");
+var wmChallengeNameEl = document.getElementById("wmChallengeName");
+var wmChallengeStatusEl = document.getElementById("wmChallengeStatus");
+var wmChallengeBtnEl = document.getElementById("wmChallengeBtn");
+var levelSelectChallengeBtnEl = document.getElementById("levelSelectChallengeBtn");
+
+/* Challenge definitions. "level" is the 0-based index into LEVELS
+   (matching currentLevelIndex); it is displayed as LEVEL n+1.
+   timeLimit is in seconds (omitted/0 for untimed challenges). The
+   targets match the real coin/enemy counts in the LEVELS data so
+   every challenge is actually achievable. */
+var CHALLENGES = [
+    { id: "challenge_01", name: "Coin Rush",     description: "Cap off a speedy lap of Level 1 collecting coins.",
+      level: 0, difficulty: "Easy",   type: "COINS",    target: 5,  timeLimit: 40,  reward: 400 },
+    { id: "challenge_02", name: "Enemy Hunter",  description: "Stomp the patrols before the timer runs out.",
+      level: 0, difficulty: "Easy",   type: "ENEMIES",  target: 2,  timeLimit: 40,  reward: 450 },
+    { id: "challenge_03", name: "Speed Run",     description: "Fly through Level 1 in record time.",
+      level: 0, difficulty: "Easy",   type: "TIME",     target: 40, reward: 400 },
+    { id: "challenge_04", name: "Combo Master",  description: "Chain actions to reach a big combo on Level 1.",
+      level: 0, difficulty: "Easy",   type: "COMBO",    target: 4,  timeLimit: 45,  reward: 350 },
+    { id: "challenge_05", name: "Survival",      description: "Reach the end of Level 1 without losing a life.",
+      level: 0, difficulty: "Easy",   type: "NO_DEATH", target: null,              reward: 500 },
+    { id: "challenge_06", name: "Coin Rush",     description: "Grab 6 coins on Level 2 before the clock stops.",
+      level: 1, difficulty: "Medium", type: "COINS",   target: 6,  timeLimit: 45,  reward: 500 },
+    { id: "challenge_07", name: "Enemy Hunter",  description: "Defeat 3 enemies through the pits of Level 2.",
+      level: 1, difficulty: "Medium", type: "ENEMIES", target: 3,  timeLimit: 45,  reward: 500 },
+    { id: "challenge_08", name: "Speed Run",     description: "Cross Level 2, pits and all, in record time.",
+      level: 1, difficulty: "Medium", type: "TIME",    target: 75, reward: 450 },
+    { id: "challenge_09", name: "Combo Master",  description: "Reach Combo x6 on the dangerous Level 2.",
+      level: 1, difficulty: "Medium", type: "COMBO",   target: 6,  timeLimit: 50,  reward: 450 },
+    { id: "challenge_10", name: "Survival",      description: "Survive every pit and enemy on Level 2.",
+      level: 1, difficulty: "Hard",   type: "NO_DEATH", target: null,              reward: 600 },
+    { id: "challenge_11", name: "Coin Rush",     description: "Collect 6 coins on Level 3's tough terrain.",
+      level: 2, difficulty: "Hard",   type: "COINS",    target: 6,  timeLimit: 55,  reward: 600 },
+    { id: "challenge_12", name: "Enemy Hunter",  description: "Stomp 4 foes while crossing Level 3.",
+      level: 2, difficulty: "Hard",   type: "ENEMIES",  target: 4,  timeLimit: 55,  reward: 650 },
+    { id: "challenge_13", name: "Speed Run",     description: "Beat Level 3 (boss included) with a fast time.",
+      level: 2, difficulty: "Hard",   type: "TIME",     target: 95, reward: 600 },
+    { id: "challenge_14", name: "Perfect Run",   description: "Clear Level 3 flawlessly: no deaths, on the clock.",
+      level: 2, difficulty: "Hard",   type: "PERFECT",  target: 130,               reward: 900 },
+    { id: "challenge_15", name: "Survival",      description: "Slay the boss and finish Level 3 untouched.",
+      level: 2, difficulty: "Hard",   type: "NO_DEATH", target: null,              reward: 800 }
+];
+
+var CHALLENGE_SAVE_KEY = "marioGameChallengeBest";
+
+/* Persistent best results per challenge id.
+   Each record: { completed, bestTime (secs), bestScore, attempts } */
+var challengeRecords = {};
+
+/* Runtime challenge state (never persisted). */
+var challengeActive = false;          /* a challenge run is happening */
+var challenge = null;                 /* the active challenge definition */
+var challengePhase = "idle";          /* idle | running | complete | failed */
+var challengeElapsedMs = 0;           /* real playing time accumulated */
+var challengeTimeLeftMs = 0;          /* countdown; 0 = no time limit */
+var challengeLastWarnSec = -1;        /* last integer second that beeped */
+var challengeScreenFrom = "levelselect"; /* where the screen was opened */
+
+/* Deterministic daily selection: the same local date always picks
+   the same challenge on the same version, and it changes when the
+   date changes. No backend, no internet, works over file:// */
+function dailyChallengeIndex() {
+    var d = new Date();
+    var month = d.getMonth() + 1;
+    var day = d.getDate();
+    var key = d.getFullYear() + "-" +
+              (month < 10 ? "0" : "") + month + "-" +
+              (day < 10 ? "0" : "") + day;
+    var h = 0;
+    for (var i = 0; i < key.length; i++) {
+        h = (h * 31 + key.charCodeAt(i)) >>> 0;
+    }
+    return h % CHALLENGES.length;
+}
+
+function getTodayChallenge() {
+    return CHALLENGES[dailyChallengeIndex()] || CHALLENGES[0];
+}
+
+/* Safely load best results; corrupt/missing storage -> empty map */
+function loadChallengeRecords() {
+    challengeRecords = {};
+    try {
+        var raw = window.localStorage.getItem(CHALLENGE_SAVE_KEY);
+        if (raw) {
+            var obj = JSON.parse(raw);
+            if (obj && typeof obj === "object") {
+                for (var id in obj) {
+                    if (!obj.hasOwnProperty(id) || !obj[id] || typeof obj[id] !== "object") continue;
+                    challengeRecords[id] = {
+                        completed: !!obj[id].completed,
+                        bestTime: Number(obj[id].bestTime) || 0,
+                        bestScore: Number(obj[id].bestScore) || 0,
+                        attempts: Number(obj[id].attempts) || 0
+                    };
+                }
+            }
+        }
+    } catch (err) {
+        challengeRecords = {};
+    }
+}
+
+function persistChallengeRecords() {
+    try {
+        window.localStorage.setItem(CHALLENGE_SAVE_KEY, JSON.stringify(challengeRecords));
+    } catch (err) {
+        /* storage unavailable: continue in-memory */
+    }
+}
+
+function challengeBest(id) {
+    return challengeRecords[id] ||
+        { completed: false, bestTime: 0, bestScore: 0, attempts: 0 };
+}
+
+/* Small clock/purpose helpers */
+function formatClock(secs) {
+    secs = Math.max(0, Math.floor(secs));
+    var m = Math.floor(secs / 60);
+    var s = secs % 60;
+    return (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s;
+}
+
+function challengeObjectiveText(c) {
+    switch (c.type) {
+        case "COINS":   return "Collect " + c.target + " coins";
+        case "ENEMIES": return "Defeat " + c.target + " enemies";
+        case "COMBO":   return "Reach Combo x" + c.target;
+        case "TIME":    return "Finish within " + c.target + " seconds";
+        case "PERFECT": return "No deaths, within " + c.target + " seconds";
+        case "NO_DEATH":return "Finish without losing a life";
+    }
+    return "";
+}
+
+/* Live progress of the current challenge objective */
+function challengeProgressValue() {
+    switch (challenge && challenge.type) {
+        case "COINS":   return coinCount;
+        case "ENEMIES": return attemptEnemies;
+        case "COMBO":   return combo;
+        case "TIME":    return Math.floor(challengeElapsedMs / 1000);
+        case "PERFECT": return Math.floor(challengeElapsedMs / 1000);
+        default:        return 0;
+    }
+}
+
+/* Counting objectives are met the instant their target is reached */
+function challengeObjectiveMet() {
+    switch (challenge.type) {
+        case "COINS":   return coinCount >= challenge.target;
+        case "ENEMIES": return attemptEnemies >= challenge.target;
+        case "COMBO":   return combo >= challenge.target;
+    }
+    return false;
+}
+
+/* ----- Challenge Mode screen ----- */
+
+function openChallengeScreen(from) {
+    if (from) challengeScreenFrom = from;
+    if (challengeScreenFrom === "worldmap") {
+        worldMapScreenEl.classList.remove("hidden");
+        gameState = "worldmap";
+    } else {
+        challengeScreenFrom = "levelselect";
+        gameState = "levelselect";
+        levelSelectScreenEl.classList.remove("hidden");
+    }
+    renderChallengeScreen();
+    challengeScreenEl.classList.remove("hidden");
+    sfxLevelSelect();
+}
+
+function closeChallengeScreen() {
+    challengeScreenEl.classList.add("hidden");
+    sfxWorldMapSelect();
+}
+
+function chRow(label, val) {
+    return '<div class="cc-row"><span>' + label + '</span><b>' + val + '</b></div>';
+}
+
+function challengeBestText(c) {
+    var rec = challengeBest(c.id);
+    if (!rec.completed) return "Not completed yet";
+    var text = "Completed";
+    if (rec.bestTime) text += " \u00B7 " + rec.bestTime.toFixed(1) + "s";
+    if (rec.bestScore) text += " \u00B7 " + rec.bestScore + " pts";
+    return text;
+}
+
+function renderChallengeScreen() {
+    var c = getTodayChallenge();
+    var rec = challengeBest(c.id);
+    var attempted = ACHIEV_STATS.challengesAttempted || 0;
+    var completed = ACHIEV_STATS.challengesCompleted || 0;
+    var rate = attempted > 0 ? Math.round((completed / attempted) * 100) : 0;
+    var fastest = ACHIEV_STATS.fastestChallengeTime || 0;
+
+    var html = '<div class="cc-name">' + c.name.toUpperCase() + '</div>' +
+        '<div class="cc-sub">' + c.description + '</div>' +
+        '<div class="cc-grid">' +
+            chRow("Target Level", "LEVEL " + (c.level + 1)) +
+            chRow("Difficulty", c.difficulty) +
+            chRow("Objective", challengeObjectiveText(c)) +
+            (c.timeLimit ? chRow("Time Limit", formatClock(c.timeLimit)) : "") +
+            '<div class="cc-row cc-reward"><span>Reward</span><b>+' +
+                c.reward + ' SCORE</b></div>' +
+            '<div class="cc-row cc-best"><span>Best result</span><b>' +
+                challengeBestText(c) + '</b></div>' +
+        '</div>' +
+        '<span class="cc-status ' + (rec.completed ? "done" : "todo") + '">' +
+            (rec.completed ? "COMPLETED" : "NOT COMPLETED") + '</span>';
+
+    challengeCardEl.innerHTML = html;
+    challengeStatsEl.innerHTML =
+        '<span>Attempts: <b>' + (rec.attempts || 0) + '</b></span>' +
+        '<span>Completed: <b>' + completed + ' / ' + attempted + '</b></span>' +
+        '<span>Completion rate: <b>' + rate + '%</b></span>' +
+        '<span>Best challenge score: <b>' +
+            (ACHIEV_STATS.bestChallengeScore || "--") + '</b></span>' +
+        '<span>Fastest challenge: <b>' +
+            (fastest ? fastest.toFixed(1) + "s" : "--") + '</b></span>';
+}
+
+/* World Map special bar */
+function updateWorldMapChallengeBar() {
+    var c = getTodayChallenge();
+    var rec = challengeBest(c.id);
+    wmChallengeNameEl.textContent = c.name.toUpperCase();
+    wmChallengeStatusEl.textContent = rec.completed ? "COMPLETED" : "TODAY'S CHALLENGE";
+    wmChallengeStatusEl.classList.toggle("done", !!rec.completed);
+    wmChallengeStatusEl.classList.toggle("todo", !rec.completed);
+}
+
+/* ----- Running a challenge ----- */
+
+function startChallenge() {
+    var def = getTodayChallenge();
+    if (!def) return;
+
+    sfxChallengeStart();
+
+    /* Count one attempt (per challenge id + overall statistic) */
+    var rec = challengeRecords[def.id] || {};
+    rec.attempts = (rec.attempts || 0) + 1;
+    challengeRecords[def.id] = rec;
+    persistChallengeRecords();
+    addStat("challengesAttempted", 1);
+
+    /* Close every overlay and unfreeze the game before loading */
+    messageEl.style.display = "none";
+    challengeScreenEl.classList.add("hidden");
+    levelSelectScreenEl.classList.add("hidden");
+    worldMapScreenEl.classList.add("hidden");
+    hidePauseMenu();
+    if (achievPanelEl && !achievPanelEl.classList.contains("hidden")) {
+        achievPanelEl.classList.add("hidden");
+    }
+    if (missionPanelEl && !missionPanelEl.classList.contains("hidden")) {
+        missionPanelEl.classList.add("hidden");
+    }
+
+    clearPausableTimer(levelStartTimer); levelStartTimer = null;
+    clearPausableTimer(respawnTimer);    respawnTimer = null;
+    if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+    }
+
+    paused = false;
+    game.classList.remove("paused");
+
+    /* Fresh attempt: the run starts from the same baseline as any
+       normal level, so lives/coins/score behave exactly as expected */
+    score = 0;
+    totalCoinsRun = 0;
+    lives = START_LIVES;
+    isDying = false;
+    newHighAwarded = false;
+    invulnUntil = 0;
+    resetCombo();
+    /* Per-attempt counters (missions stay silent, so reset here) */
+    attemptEnemies = 0;
+    attemptTime = 0;
+    attemptNoDeath = true;
+
+    challenge = def;
+    challengeActive = true;
+    challengePhase = "running";
+    challengeElapsedMs = 0;
+    challengeTimeLeftMs = def.timeLimit ? def.timeLimit * 1000 : 0;
+    challengeLastWarnSec = -1;
+
+    renderLives();
+    loadLevel(def.level);
+    challengeHudEl.classList.remove("hidden");
+    updateChallengeHud();
+}
+
+/* Silently end an active challenge (used when the player leaves into
+   a normal level). Nothing is recorded; the attempt already counted. */
+function endChallengeSilent() {
+    if (!challengeActive && challengePhase === "idle") return;
+    if (challengeActive || challengePhase !== "idle") {
+        clearPausableTimer(levelStartTimer); levelStartTimer = null;
+        clearPausableTimer(respawnTimer);    respawnTimer = null;
+        if (rafId !== null) {
+            cancelAnimationFrame(rafId);
+            rafId = null;
+        }
+    }
+    challengeHudEl.classList.add("hidden");
+    challengeActive = false;
+    challenge = null;
+    challengePhase = "idle";
+    challengeElapsedMs = 0;
+    challengeTimeLeftMs = 0;
+    isDying = false;
+}
+
+/* Challenge clock + warning beeps (driven from the main game loop) */
+function updateChallengeTimer(dt) {
+    challengeElapsedMs += dt;
+    if (challenge.timeLimit) {
+        challengeTimeLeftMs -= dt;
+        var secsLeft = Math.ceil(challengeTimeLeftMs / 1000);
+        if (secsLeft !== challengeLastWarnSec) {
+            challengeLastWarnSec = secsLeft;
+            if (secsLeft <= 10 && secsLeft > 0 && soundEnabled) {
+                playTone("sine", secsLeft <= 3 ? 660 : 880, 0.07, 0.14);
+            }
+        }
+        if (challengeTimeLeftMs <= 0) {
+            failChallenge("Time expired.");
+        }
+    }
+}
+
+/* ----- Challenge HUD (top/left, over the gameplay field) ----- */
+
+function chObjRow(label, val) {
+    return '<div class="ch-row"><span>' + label +
+           '</span><span class="ch-stat">' + val + '</span></div>';
+}
+
+function updateChallengeHud() {
+    if (!challengeActive || !challenge || challengePhase !== "running") return;
+    var html = '<div class="ch-title">CHALLENGE: ' +
+               challenge.name.toUpperCase() + '</div>';
+    switch (challenge.type) {
+        case "COINS":   html += chObjRow("Coins", coinCount + " / " + challenge.target); break;
+        case "ENEMIES": html += chObjRow("Enemies", attemptEnemies + " / " + challenge.target); break;
+        case "COMBO":   html += chObjRow("Combo", "x" + combo + " / x" + challenge.target); break;
+        case "TIME":    html += chObjRow("Target", formatClock(challenge.target)); break;
+        case "PERFECT": html += chObjRow("Target", formatClock(challenge.target) + " \u00B7 No deaths"); break;
+        case "NO_DEATH":html += chObjRow("Lives", lives + " / " + START_LIVES); break;
+    }
+    if (challenge.timeLimit) {
+        html += chObjRow("Time", formatClock(challengeTimeLeftMs / 1000));
+    } else {
+        html += chObjRow("Elapsed", formatClock(challengeElapsedMs / 1000));
+    }
+    html += chObjRow("Reward", "+" + challenge.reward);
+    challengeHudEl.innerHTML = html;
+
+    var warn = challenge.timeLimit && (challengeTimeLeftMs / 1000) <= 10;
+    challengeHudEl.classList.toggle("ch-warn", warn);
+}
+
+/* ----- Endings: success (reward) and failure ----- */
+
+function finishChallenge() {
+    if (!challengeActive) return;
+    var def = challenge;
+
+    clearPausableTimer(levelStartTimer); levelStartTimer = null;
+    clearPausableTimer(respawnTimer);    respawnTimer = null;
+    if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+    }
+
+    challengeHudEl.classList.add("hidden");
+    challengePhase = "complete";
+
+    var elapsedSec = challengeElapsedMs / 1000;
+
+    /* Reward feeds the normal score, but the run itself never
+       touches the persistent high score or best level. */
+    score += def.reward;
+    scoreEl.textContent = score;
+    flashScore();
+
+    /* Persist the best result for this challenge */
+    var rec = challengeRecords[def.id] || {};
+    rec.completed = true;
+    rec.bestScore = Math.max(rec.bestScore || 0, score);
+    if (!rec.bestTime || elapsedSec < rec.bestTime) rec.bestTime = elapsedSec;
+    rec.attempts = rec.attempts || 0;
+    challengeRecords[def.id] = rec;
+    persistChallengeRecords();
+
+    /* Challenge statistics + achievements */
+    addStat("challengesCompleted", 1);
+    setStatMax("bestChallengeScore", score);
+    setStatMin("fastestChallengeTime", elapsedSec);
+    checkChallengeAchievements();
+
+    gameState = "challengecomplete";
+    challengeActive = false;
+
+    sfxChallengeComplete();
+
+    var infoText = def.name.toUpperCase() +
+        "  |  Time: " + elapsedSec.toFixed(1) + " sec  |  +" +
+        def.reward + " SCORE";
+    showMessage("CHALLENGE COMPLETE!", infoText, null, null, null, null, [
+        { label: "REPLAY", action: function() { startChallenge(); }, cls: "orange" },
+        { label: "BACK",   action: exitChallenge, cls: "blue" }
+    ]);
+}
+
+function failChallenge(reason) {
+    if (!challengeActive) return;
+    clearPausableTimer(levelStartTimer); levelStartTimer = null;
+    clearPausableTimer(respawnTimer);    respawnTimer = null;
+    if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+    }
+    isDying = false;
+    challengeHudEl.classList.add("hidden");
+    challengePhase = "failed";
+    gameState = "challengefailed";
+    sfxChallengeFail();
+    showMessage("CHALLENGE FAILED", reason, null, null, null, null, [
+        { label: "RETRY", action: function() { startChallenge(); }, cls: "orange" },
+        { label: "EXIT",  action: exitChallenge, cls: "blue" }
+    ]);
+}
+
+/* EXIT on a complete/failed screen returns to the Challenge screen */
+function exitChallenge() {
+    endChallengeSilent();
+    messageEl.style.display = "none";
+    openChallengeScreen(challengeScreenFrom || "levelselect");
+}
+
+/* CHALLENGE CHAMPION (3) / CHALLENGE MASTER (5) */
+function checkChallengeAchievements() {
+    var completed = 0;
+    for (var i = 0; i < CHALLENGES.length; i++) {
+        var r = challengeRecords[CHALLENGES[i].id];
+        if (r && r.completed) completed++;
+    }
+    if (completed >= 3) unlockAchievement("challengeChampion");
+    if (completed >= 5) unlockAchievement("challengeMaster");
+}
+
+/* Day 17: a "minimum" counterpart to setStatMax for the fastest time */
+function setStatMin(key, value) {
+    if (!ACHIEV_STATS[key] || value < ACHIEV_STATS[key]) {
+        ACHIEV_STATS[key] = Math.floor(value * 10) / 10;
+        persistAchievStats();
+    }
+}
+
+/* ----- Challenge sounds (reuse the single Web Audio context) ----- */
+
+function sfxChallengeStart() {
+    playTone("sine", 523, 0.1, 0.18);
+    setTimeout(function() { playTone("sine", 659, 0.12, 0.2); }, 90);
+    setTimeout(function() { playTone("sine", 784, 0.16, 0.22); }, 180);
+}
+
+function sfxChallengeComplete() {
+    var notes = [523, 659, 784, 1047, 1319];
+    for (var i = 0; i < notes.length; i++) {
+        (function(freq, delay) {
+            setTimeout(function() { playTone("triangle", freq, 0.16, 0.22); }, delay);
+        })(notes[i], i * 110);
+    }
+}
+
+function sfxChallengeFail() {
+    playTone("square", 330, 0.18, 0.2);
+    setTimeout(function() { playTone("square", 220, 0.2, 0.2, 110); }, 160);
+    setTimeout(function() { playTone("square", 165, 0.3, 0.2, 80); }, 380);
+}
+
+/* ----- Challenge Mode buttons (onclick properties, no duplicate
+        listeners possible) ----- */
+challengeStartBtnEl.onclick = startChallenge;
+challengeBackBtnEl.onclick = closeChallengeScreen;
+wmChallengeBtnEl.onclick = function() { openChallengeScreen("worldmap"); };
+levelSelectChallengeBtnEl.onclick = function() { openChallengeScreen("levelselect"); };
+
+
 /* ===== GAME LOOP ===== */
 
 function startLoop() {
@@ -3755,6 +4377,16 @@ function gameLoop() {
     if (dt > 0) {
         if (dt > 250) dt = 250;
         trackMissionTime(dt);
+    }
+
+    /* Day 17: drive the challenge clock from the same loop. Because
+       the loop is frozen while paused (and its frame time reset on
+       resume), the challenge timer stops on pause, resumes correctly
+       and never needs its own animation loop or interval. */
+    if (challengeActive && challengePhase === "running") {
+        updateChallengeTimer(dt);
+        if (challengePhase !== "running") return;   /* challenge just ended */
+        updateChallengeHud();
     }
 
     /* Update moving platforms */
@@ -3994,6 +4626,14 @@ function gameLoop() {
         }
     }
 
+    /* Day 17: counting-type challenges finish the moment their
+       objective is reached (before any goal check) */
+    if (challengeActive && challengePhase === "running" &&
+        challengeObjectiveMet()) {
+        finishChallenge();
+        return;
+    }
+
     /* Goal reached: finish this level (or win the whole game) */
     if (playerX + PLAYER_W >= currentGoalX) {
         completeLevel();
@@ -4065,4 +4705,7 @@ loadLevelSelectData();
    flagged so an old save never shows it as missing. */
 loadMissionProgress();
 checkMissionMaster();
+/* Day 17: restore best challenge results so they survive reloads,
+   browser restarts and returning to Challenge Mode. */
+loadChallengeRecords();
 loadLevel(0);

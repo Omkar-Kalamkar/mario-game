@@ -62,7 +62,7 @@
                     </span>
                     <span id="powerTimerBarWrap"><span id="powerTimerBar"></span></span>
                 </div>
-                <button id="achievHudBtn" class="hud-btn" title="Achievements">🏆 <span id="achievHudCount">0/13</span></button>
+                <button id="achievHudBtn" class="hud-btn" title="Achievements">🏆 <span id="achievHudCount">0/15</span></button>
                 <button id="soundBtn" class="hud-btn" title="Toggle sound">🔊 SOUND ON</button>
                 <button id="pauseBtn" class="hud-btn pause-btn" title="Pause game">⏸ PAUSE</button>
             </div>
@@ -146,12 +146,31 @@
             <!-- Day 16: mission completion toast notifications -->
             <div id="missionNotices"></div>
 
+            <!-- Day 17: Challenge Mode compact HUD (shown during a challenge run) -->
+            <div id="challengeHud" class="hidden"></div>
+
+            <!-- Day 17: Challenge Mode screen (daily challenge, shown from
+                 Level Select or the World Map) -->
+            <div id="challengeScreen" class="hidden">
+                <h2>CHALLENGE MODE</h2>
+                <p class="ls-subtitle">TODAY'S CHALLENGE</p>
+                <div id="challengeCard" class="challenge-card"></div>
+                <div id="challengeStats" class="challenge-stats"></div>
+                <div class="challenge-buttons">
+                    <button id="challengeStartBtn" class="challenge-btn start">START CHALLENGE</button>
+                    <button id="challengeBackBtn" class="challenge-btn back">BACK</button>
+                </div>
+            </div>
+
             <!-- Day 14: Level Select screen -->
             <div id="levelSelectScreen" class="hidden">
                 <h2>MARIO PLATFORM ADVENTURE</h2>
                 <p class="ls-subtitle">SELECT LEVEL</p>
                 <div id="levelCards" class="level-cards"></div>
-                <button id="levelSelectWorldMapBtn" class="ls-worldmap-btn">🗺 WORLD MAP</button>
+                <div class="ls-footer-btns">
+                    <button id="levelSelectChallengeBtn" class="ls-challenge-btn">🏆 CHALLENGE MODE</button>
+                    <button id="levelSelectWorldMapBtn" class="ls-worldmap-btn">🗺 WORLD MAP</button>
+                </div>
                 <button id="levelSelectCloseBtn" class="ls-close-btn">BACK</button>
             </div>
 
@@ -165,6 +184,15 @@
                         <div id="worldMapProgress" class="worldmap-progress"></div>
                         <div id="worldMapDetails" class="worldmap-details"></div>
                     </div>
+                </div>
+                <!-- Day 17: special Challenge Mode access on the World Map -->
+                <div id="worldMapChallenge" class="wm-challenge">
+                    <div class="wm-challenge-badge">SPECIAL</div>
+                    <div class="wm-challenge-title">CHALLENGE MODE</div>
+                    <div class="wm-challenge-sub">TODAY'S CHALLENGE</div>
+                    <div class="wm-challenge-name" id="wmChallengeName"></div>
+                    <div class="wm-challenge-status" id="wmChallengeStatus"></div>
+                    <button id="wmChallengeBtn" class="wm-challenge-btn">VIEW CHALLENGE</button>
                 </div>
                 <button id="worldMapCloseBtn" class="ls-close-btn">BACK</button>
             </div>
