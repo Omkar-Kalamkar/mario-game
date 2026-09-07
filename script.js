@@ -1374,6 +1374,12 @@ document.addEventListener("keydown", function(e) {
             closeChallengeScreen();
             return;
         }
+        /* Day 18: if the Daily Rewards screen is open, Escape closes it
+           back to its prior screen (keeps gameplay frozen) */
+        if (!dailyRewardsScreenEl.classList.contains("hidden")) {
+            closeDailyRewards();
+            return;
+        }
         /* Day 15: if the World Map is open, Escape closes it back to
            its prior screen (keeps gameplay frozen), it does NOT unpause */
         if (gameState === "worldmap" &&
@@ -2892,6 +2898,8 @@ function openWorldMap(fromLevelSelect) {
     sfxWorldMapOpen();
     /* Day 17: refresh the special Challenge Mode bar */
     updateWorldMapChallengeBar();
+    /* Day 18: refresh the Daily Rewards indicator */
+    updateWorldMapDailyRewards();
     renderWorldMapProgress();
     renderWorldMapNodes(null);
     renderWorldMapDetailsEmpty();
@@ -2971,7 +2979,10 @@ var ACHIEVEMENTS = [
     { id: "worldExplorer", title: "WORLD EXPLORER", description: "Open the World Map and visit all three level nodes." },
     { id: "missionMaster", title: "MISSION MASTER", description: "Complete every mission across all three levels." },
     { id: "challengeChampion", title: "CHALLENGE CHAMPION", description: "Complete 3 Challenge Mode challenges." },
-    { id: "challengeMaster", title: "CHALLENGE MASTER", description: "Complete 5 Challenge Mode challenges." }
+    { id: "challengeMaster", title: "CHALLENGE MASTER", description: "Complete 5 Challenge Mode challenges." },
+    { id: "dailyVisitor", title: "DAILY VISITOR", description: "Claim your first daily reward." },
+    { id: "weeklyWarrior", title: "WEEKLY WARRIOR", description: "Complete one full 7-day reward cycle." },
+    { id: "streakMaster", title: "STREAK MASTER", description: "Reach a 7-day consecutive streak." }
 ];
 
 /* Map id -> achievement for fast lookup */
@@ -2995,7 +3006,11 @@ var ACHIEV_STATS = {
     gamesCompleted: 0,
     bosses: 0,
     highestScore: 0,
-    worldMapVisits: 0
+    worldMapVisits: 0,
+    dailyRewardsClaimed: 0,
+    currentDailyStreak: 0,
+    bestDailyStreak: 0,
+    rewardCyclesCompleted: 0
 };
 
 /* Load the unlocked achievement ids from localStorage, validating
@@ -3028,7 +3043,10 @@ function loadAchievStats() {
         missionsCompleted: 0,
         /* Day 17: challenge statistics */
         challengesAttempted: 0, challengesCompleted: 0,
-        bestChallengeScore: 0, fastestChallengeTime: 0
+        bestChallengeScore: 0, fastestChallengeTime: 0,
+        /* Day 18: daily rewards statistics */
+        dailyRewardsClaimed: 0, currentDailyStreak: 0,
+        bestDailyStreak: 0, rewardCyclesCompleted: 0
     };
     try {
         var raw = window.localStorage.getItem(ACHIEV_STATS_KEY);
@@ -3248,7 +3266,15 @@ function renderAchievPanel() {
         '<div class="stat-row">Best Score (L2): <b>' + levelBestScore[1] + '</b> | ' +
             'Best Coins (L2): <b>' + levelBestCoins[1] + '/' + levelCoinCounts[1] + '</b></div>' +
         '<div class="stat-row">Best Score (L3): <b>' + levelBestScore[2] + '</b> | ' +
-            'Best Coins (L3): <b>' + levelBestCoins[2] + '/' + levelCoinCounts[2] + '</b></div>';
+            'Best Coins (L3): <b>' + levelBestCoins[2] + '/' + levelCoinCounts[2] + '</b></div>' +
+        '<div class="stat-row">Daily Rewards Claimed: <b>' +
+            ACHIEV_STATS.dailyRewardsClaimed + '</b></div>' +
+        '<div class="stat-row">Current Daily Streak: <b>' +
+            ACHIEV_STATS.currentDailyStreak + ' days</b></div>' +
+        '<div class="stat-row">Best Daily Streak: <b>' +
+            ACHIEV_STATS.bestDailyStreak + ' days</b></div>' +
+        '<div class="stat-row">Reward Cycles Completed: <b>' +
+            ACHIEV_STATS.rewardCyclesCompleted + '</b></div>';
 }
 
 /* Reset only the achievement data (unlocks + stats), after asking
@@ -3269,7 +3295,9 @@ function resetAchievements() {
         gamesCompleted: 0, bosses: 0, highestScore: 0, worldMapVisits: 0,
         missionsCompleted: 0,
         challengesAttempted: 0, challengesCompleted: 0,
-        bestChallengeScore: 0, fastestChallengeTime: 0
+        bestChallengeScore: 0, fastestChallengeTime: 0,
+        dailyRewardsClaimed: 0, currentDailyStreak: 0,
+        bestDailyStreak: 0, rewardCyclesCompleted: 0
     };
     try {
         window.localStorage.removeItem(ACHIEV_SAVE_KEY);
@@ -4115,6 +4143,9 @@ function startChallenge() {
     if (missionPanelEl && !missionPanelEl.classList.contains("hidden")) {
         missionPanelEl.classList.add("hidden");
     }
+    if (dailyRewardsScreenEl && !dailyRewardsScreenEl.classList.contains("hidden")) {
+        dailyRewardsScreenEl.classList.add("hidden");
+    }
 
     clearPausableTimer(levelStartTimer); levelStartTimer = null;
     clearPausableTimer(respawnTimer);    respawnTimer = null;
@@ -4350,6 +4381,489 @@ challengeStartBtnEl.onclick = startChallenge;
 challengeBackBtnEl.onclick = closeChallengeScreen;
 wmChallengeBtnEl.onclick = function() { openChallengeScreen("worldmap"); };
 levelSelectChallengeBtnEl.onclick = function() { openChallengeScreen("levelselect"); };
+
+
+/* ============================================================
+    DAY 18: DAILY REWARDS & STREAK SYSTEM
+
+    A 7-day reward calendar that encourages the player to return
+    every day. Rewards are claimed once per calendar day, the
+    streak advances on consecutive days, and resets on missed
+    days. All data is stored in localStorage under a dedicated
+    key that never touches other saved game data.
+
+    Design rules:
+      - No backend, no network, works over file://
+      - Never erases or overwrites unrelated localStorage data
+      - Restart Game does NOT reset daily rewards
+      - Event-driven, no extra animation loops or intervals
+      - Sound respects the existing sound ON/OFF toggle
+    ============================================================ */
+
+/* ===== Daily Rewards data ===== */
+
+var DAILY_REWARDS = [
+    { day: 1, rewardType: "SCORE", rewardValue: 100 },
+    { day: 2, rewardType: "SCORE", rewardValue: 150 },
+    { day: 3, rewardType: "SCORE", rewardValue: 200 },
+    { day: 4, rewardType: "SCORE", rewardValue: 250 },
+    { day: 5, rewardType: "SCORE", rewardValue: 300 },
+    { day: 6, rewardType: "SCORE", rewardValue: 400 },
+    { day: 7, rewardType: "SCORE", rewardValue: 1000 }
+];
+
+/* ===== DOM references ===== */
+
+var dailyRewardsScreenEl = document.getElementById("dailyRewardsScreen");
+var dailyRewardsCalendarEl = document.getElementById("dailyRewardsCalendar");
+var dailyRewardsStreakEl = document.getElementById("dailyRewardsStreak");
+var dailyRewardsStatusEl = document.getElementById("dailyRewardsStatus");
+var dailyRewardsClaimBtnEl = document.getElementById("dailyRewardsClaimBtn");
+var dailyRewardsCloseBtnEl = document.getElementById("dailyRewardsCloseBtn");
+var dailyRewardsNoticesEl = document.getElementById("dailyRewardsNotices");
+var dailyIndicatorEl = document.getElementById("dailyIndicator");
+var pauseDailyRewardsBtnEl = document.getElementById("pauseDailyRewardsBtn");
+var wmDrStatusEl = document.getElementById("wmDrStatus");
+var wmDrBtnEl = document.getElementById("wmDrBtn");
+
+/* ===== localStorage key ===== */
+
+var DAILY_REWARDS_KEY = "marioGameDailyRewards";
+
+/* ===== In-memory state ===== */
+
+var dailyRewardsState = {
+    currentDay: 1,
+    currentStreak: 0,
+    bestStreak: 0,
+    lastClaimDate: "",
+    totalClaimed: 0,
+    cyclesCompleted: 0
+};
+
+/* ===== Date Helpers ===== */
+
+/* Return today's date as a normalized "YYYY-MM-DD" string using
+   the player's local calendar. No timestamps, no time components. */
+function drTodayStr() {
+    var d = new Date();
+    var y = d.getFullYear();
+    var m = d.getMonth() + 1;
+    var day = d.getDate();
+    return y + "-" + (m < 10 ? "0" : "") + m + "-" + (day < 10 ? "0" : "") + day;
+}
+
+/* Return the previous calendar day as "YYYY-MM-DD" */
+function drYesterdayStr() {
+    var d = new Date();
+    d.setDate(d.getDate() - 1);
+    var y = d.getFullYear();
+    var m = d.getMonth() + 1;
+    var day = d.getDate();
+    return y + "-" + (m < 10 ? "0" : "") + m + "-" + (day < 10 ? "0" : "") + day;
+}
+
+/* Days between two date strings (a - b). Both "YYYY-MM-DD". */
+function drDaysBetween(a, b) {
+    var da = new Date(a + "T00:00:00");
+    var db = new Date(b + "T00:00:00");
+    return Math.round((da - db) / 86400000);
+}
+
+/* ===== localStorage ===== */
+
+function loadDailyRewards() {
+    var defaults = {
+        currentDay: 1,
+        currentStreak: 0,
+        bestStreak: 0,
+        lastClaimDate: "",
+        totalClaimed: 0,
+        cyclesCompleted: 0
+    };
+    try {
+        var raw = window.localStorage.getItem(DAILY_REWARDS_KEY);
+        if (raw) {
+            var obj = JSON.parse(raw);
+            if (obj && typeof obj === "object") {
+                defaults.currentDay = (Number(obj.currentDay) >= 1 && Number(obj.currentDay) <= 7)
+                    ? Number(obj.currentDay) : 1;
+                defaults.currentStreak = Math.max(0, Number(obj.currentStreak) || 0);
+                defaults.bestStreak = Math.max(0, Number(obj.bestStreak) || 0);
+                defaults.lastClaimDate = typeof obj.lastClaimDate === "string" ? obj.lastClaimDate : "";
+                defaults.totalClaimed = Math.max(0, Number(obj.totalClaimed) || 0);
+                defaults.cyclesCompleted = Math.max(0, Number(obj.cyclesCompleted) || 0);
+            }
+        }
+    } catch (err) {
+        /* corrupt: use defaults */
+    }
+
+    /* Advance or reset streak based on the last claim date vs today.
+       The claim already advanced currentDay and streak, so on a
+       consecutive day we simply keep the stored state. */
+    var today = drTodayStr();
+    var yesterday = drYesterdayStr();
+
+    if (defaults.lastClaimDate === today) {
+        /* Already claimed today: streak stays, day stays */
+    } else if (defaults.lastClaimDate === yesterday) {
+        /* Consecutive day: state already advanced on the last claim.
+           currentDay points to today's reward, ready to claim. */
+    } else if (defaults.lastClaimDate !== "") {
+        /* Missed a day: reset the cycle and streak */
+        defaults.currentDay = 1;
+        defaults.currentStreak = 0;
+    }
+
+    dailyRewardsState = defaults;
+}
+
+function persistDailyRewards() {
+    try {
+        window.localStorage.setItem(DAILY_REWARDS_KEY, JSON.stringify(dailyRewardsState));
+    } catch (err) {
+        /* storage unavailable */
+    }
+}
+
+/* ===== Status determination ===== */
+
+function drGetStatus() {
+    var today = drTodayStr();
+    var last = dailyRewardsState.lastClaimDate;
+
+    if (last === today) {
+        return "claimed";
+    }
+
+    /* Check if the current day's reward is claimable */
+    var dayNum = dailyRewardsState.currentDay;
+    if (dayNum >= 1 && dayNum <= 7) {
+        return "available";
+    }
+    return "claimed";
+}
+
+/* ===== Claim Logic ===== */
+
+function drClaimReward() {
+    var status = drGetStatus();
+    if (status !== "available") return;
+
+    var today = drTodayStr();
+    var yesterday = drYesterdayStr();
+    var last = dailyRewardsState.lastClaimDate;
+    var dayNum = dailyRewardsState.currentDay;
+    var reward = DAILY_REWARDS[dayNum - 1];
+
+    /* Apply the reward */
+    if (reward.rewardType === "SCORE") {
+        score += reward.rewardValue;
+        scoreEl.textContent = score;
+        flashScore();
+        updateHighScore();
+    }
+
+    /* Update streak */
+    if (last === yesterday) {
+        dailyRewardsState.currentStreak++;
+    } else if (last === today) {
+        /* Shouldn't happen (status check), but be safe */
+    } else {
+        /* First ever or missed day */
+        dailyRewardsState.currentStreak = 1;
+    }
+
+    /* Update best streak */
+    if (dailyRewardsState.currentStreak > dailyRewardsState.bestStreak) {
+        dailyRewardsState.bestStreak = dailyRewardsState.currentStreak;
+    }
+
+    /* Update claim date and counters */
+    dailyRewardsState.lastClaimDate = today;
+    dailyRewardsState.totalClaimed++;
+
+    /* Advance to next day or cycle */
+    if (dayNum >= 7) {
+        /* Completed a full 7-day cycle */
+        dailyRewardsState.cyclesCompleted++;
+        dailyRewardsState.currentDay = 1;
+        persistDailyRewards();
+        showDrClaimNotification(reward, true);
+    } else {
+        dailyRewardsState.currentDay = dayNum + 1;
+        persistDailyRewards();
+        showDrClaimNotification(reward, false);
+    }
+
+    /* Play reward sound */
+    sfxDailyReward();
+
+    /* Update achievements + statistics */
+    addStat("dailyRewardsClaimed", 1);
+    setStatMax("bestDailyStreak", dailyRewardsState.bestStreak);
+    setStatMax("currentDailyStreak", dailyRewardsState.currentStreak);
+    checkDailyAchievements();
+
+    /* Cycle completed: increment stat exactly once */
+    if (dayNum >= 7) {
+        addStat("rewardCyclesCompleted", 1);
+    }
+
+    /* Refresh the screen and indicators */
+    renderDailyRewardsScreen();
+    updateDailyIndicator();
+    updateWorldMapDailyRewards();
+}
+
+/* ===== Achievement checks ===== */
+
+function checkDailyAchievements() {
+    if (dailyRewardsState.totalClaimed >= 1) {
+        unlockAchievement("dailyVisitor");
+    }
+    if (dailyRewardsState.cyclesCompleted >= 1) {
+        unlockAchievement("weeklyWarrior");
+    }
+    if (dailyRewardsState.bestStreak >= 7) {
+        unlockAchievement("streakMaster");
+    }
+}
+
+/* ===== Notification toast ===== */
+
+var drNoticeQueue = [];
+var drNoticeShowing = false;
+
+function showDrClaimNotification(reward, cycleComplete) {
+    var msg;
+    if (cycleComplete) {
+        msg = {
+            title: "7-DAY REWARD COMPLETE!",
+            name: "STREAK: " + dailyRewardsState.bestStreak + " DAYS",
+            reward: "+" + reward.rewardValue + " SCORE"
+        };
+    } else {
+        msg = {
+            title: "DAY " + (dailyRewardsState.currentDay > 1
+                ? dailyRewardsState.currentDay - 1 : 7) + " REWARD CLAIMED!",
+            name: reward.rewardType + " BONUS",
+            reward: "+" + reward.rewardValue + " SCORE"
+        };
+    }
+    drNoticeQueue.push(msg);
+    if (!drNoticeShowing) nextDrNotice();
+}
+
+function nextDrNotice() {
+    if (drNoticeQueue.length === 0) {
+        drNoticeShowing = false;
+        return;
+    }
+    drNoticeShowing = true;
+    var n = drNoticeQueue.shift();
+    var el = document.createElement("div");
+    el.className = "dr-notice in";
+    el.innerHTML =
+        '<div class="drn-title">' + n.title + '</div>' +
+        '<div class="drn-trophy">⭐</div>' +
+        '<div class="drn-name">' + n.name + '</div>' +
+        '<div class="drn-reward">' + n.reward + '</div>';
+    dailyRewardsNoticesEl.appendChild(el);
+
+    setTimeout(function() {
+        el.classList.remove("in");
+        el.classList.add("out");
+        el.addEventListener("animationend", function() {
+            if (el.parentNode) el.parentNode.removeChild(el);
+            nextDrNotice();
+        });
+    }, 2800);
+}
+
+/* ===== Sound ===== */
+
+function sfxDailyReward() {
+    if (!soundEnabled) return;
+    var notes = [523, 659, 784, 1047, 1319];
+    for (var i = 0; i < notes.length; i++) {
+        (function(freq, delay) {
+            setTimeout(function() { playTone("triangle", freq, 0.14, 0.22); }, delay);
+        })(notes[i], i * 100);
+    }
+}
+
+/* ===== Screen rendering ===== */
+
+function renderDailyRewardsScreen() {
+    var status = drGetStatus();
+    var dayNum = dailyRewardsState.currentDay;
+
+    /* Streak display */
+    dailyRewardsStreakEl.innerHTML =
+        '<div class="dr-streak-row">CURRENT STREAK: <b>' +
+            dailyRewardsState.currentStreak + ' DAYS</b></div>' +
+        '<div class="dr-streak-row best">BEST STREAK: <b>' +
+            dailyRewardsState.bestStreak + ' DAYS</b></div>';
+
+    /* Calendar cards.
+       Determine how many days are claimed in the current cycle and
+       whether today's reward is available. currentDay points to the
+       NEXT reward to claim after the last claim advanced it. */
+    var claimedCount = 0;
+    if (status === "claimed") {
+        if (dailyRewardsState.lastClaimDate === drTodayStr()) {
+            /* Claimed today: currentDay was advanced. If it wrapping
+               back to 1 after a cycle, all 7 are claimed. */
+            claimedCount = dayNum === 1 ? 7 : dayNum - 1;
+        }
+    }
+
+    var html = "";
+    for (var i = 0; i < DAILY_REWARDS.length; i++) {
+        var r = DAILY_REWARDS[i];
+        var cardClass = "dr-card";
+        var icon = "🔒";
+
+        if (r.day <= claimedCount) {
+            cardClass += " claimed";
+            icon = "✅";
+        } else if (r.day === dayNum && status === "available") {
+            cardClass += " available";
+            icon = "🎁";
+        } else if (status === "available" && r.day < dayNum) {
+            /* Days already claimed earlier this streak cycle */
+            cardClass += " claimed";
+            icon = "✅";
+        } else {
+            cardClass += " locked";
+        }
+
+        /* Special highlighting: Day 7 of a just-finished cycle */
+        if (status === "claimed" && dayNum === 1 &&
+            dailyRewardsState.cyclesCompleted > 0 && r.day === 7) {
+            cardClass += " completed-day";
+        }
+
+        html += '<div class="' + cardClass + '">' +
+            '<div class="dr-day-label">DAY ' + r.day + '</div>' +
+            '<div class="dr-reward-text">+' + r.rewardValue + '</div>' +
+            '<div class="dr-status-icon">' + icon + '</div>' +
+        '</div>';
+    }
+    dailyRewardsCalendarEl.innerHTML = html;
+
+    /* Status text */
+    var challengeLine = "";
+    var todayChallenge = getTodayChallenge();
+    if (todayChallenge && challengeBest(todayChallenge.id).completed) {
+        challengeLine = '<div class="dr-challenge-line">TODAY\'S CHALLENGE: COMPLETE</div>';
+    }
+
+    if (status === "claimed") {
+        dailyRewardsStatusEl.innerHTML = challengeLine +
+            '<div>REWARD CLAIMED \u2014 COME BACK TOMORROW!</div>';
+        dailyRewardsStatusEl.className = "dr-status claimed-today";
+    } else {
+        dailyRewardsStatusEl.innerHTML = challengeLine +
+            '<div>REWARD AVAILABLE!</div>';
+        dailyRewardsStatusEl.className = "dr-status available";
+    }
+
+    /* Claim button */
+    if (status === "available") {
+        dailyRewardsClaimBtnEl.disabled = false;
+        dailyRewardsClaimBtnEl.textContent = "CLAIM REWARD";
+    } else {
+        dailyRewardsClaimBtnEl.disabled = true;
+        dailyRewardsClaimBtnEl.textContent = "ALREADY CLAIMED";
+    }
+}
+
+/* ===== HUD indicator ===== */
+
+function updateDailyIndicator() {
+    var status = drGetStatus();
+    dailyIndicatorEl.className = "hud-daily-indicator";
+    if (status === "available") {
+        dailyIndicatorEl.textContent = "\uD83C\uDF81 DAILY";
+        dailyIndicatorEl.style.background = "rgba(255, 210, 63, 0.2)";
+        dailyIndicatorEl.style.color = "#ffd23f";
+        dailyIndicatorEl.style.borderColor = "rgba(255, 210, 63, 0.4)";
+    } else {
+        dailyIndicatorEl.textContent = "DAILY \u2713";
+        dailyIndicatorEl.style.background = "";
+        dailyIndicatorEl.style.color = "";
+        dailyIndicatorEl.style.borderColor = "";
+    }
+}
+
+/* ===== World Map indicator ===== */
+
+function updateWorldMapDailyRewards() {
+    var status = drGetStatus();
+    if (status === "available") {
+        wmDrStatusEl.textContent = "AVAILABLE";
+        wmDrStatusEl.className = "wm-dr-status available";
+    } else {
+        wmDrStatusEl.textContent = "CLAIMED";
+        wmDrStatusEl.className = "wm-dr-status claimed";
+    }
+}
+
+/* ===== Open / Close ===== */
+
+var dailyRewardsReturnTo = "pause";
+
+function dailyRewardsDefaultReturn() {
+    if (gameState === "levelselect") return "levelselect";
+    if (gameState === "worldmap") return "worldmap";
+    return "pause";
+}
+
+function openDailyRewards(returnTo) {
+    /* Freeze gameplay if it happens to be running */
+    if (gameState === "playing" || gameState === "banner" ||
+        gameState === "dying" || gameState === "levelcomplete") {
+        if (!paused) setPaused(true);
+    }
+
+    dailyRewardsReturnTo = returnTo || dailyRewardsDefaultReturn();
+
+    hidePauseMenu();
+    if (achievPanelEl && !achievPanelEl.classList.contains("hidden")) {
+        achievPanelEl.classList.add("hidden");
+    }
+    if (missionPanelEl && !missionPanelEl.classList.contains("hidden")) {
+        missionPanelEl.classList.add("hidden");
+    }
+
+    renderDailyRewardsScreen();
+    dailyRewardsScreenEl.classList.remove("hidden");
+    sfxWorldMapSelect();
+}
+
+function closeDailyRewards() {
+    dailyRewardsScreenEl.classList.add("hidden");
+    if (dailyRewardsReturnTo === "pause") {
+        showPauseMenu();
+    }
+    /* "levelselect" and "worldmap": their screen sits beneath the
+       panel, so it is simply revealed again. */
+    dailyRewardsReturnTo = "pause";
+}
+
+/* ===== Button wiring (onclick properties, no duplicate listeners) ===== */
+
+dailyRewardsClaimBtnEl.onclick = drClaimReward;
+dailyRewardsCloseBtnEl.onclick = closeDailyRewards;
+pauseDailyRewardsBtnEl.onclick = function() {
+    openDailyRewards("pause");
+};
+wmDrBtnEl.onclick = function() {
+    openDailyRewards("worldmap");
+};
 
 
 /* ===== GAME LOOP ===== */
@@ -4708,4 +5222,7 @@ checkMissionMaster();
 /* Day 17: restore best challenge results so they survive reloads,
    browser restarts and returning to Challenge Mode. */
 loadChallengeRecords();
+/* Day 18: restore daily rewards progress and update indicators */
+loadDailyRewards();
+updateDailyIndicator();
 loadLevel(0);

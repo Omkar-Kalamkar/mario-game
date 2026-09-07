@@ -65,6 +65,7 @@
                 <button id="achievHudBtn" class="hud-btn" title="Achievements">🏆 <span id="achievHudCount">0/15</span></button>
                 <button id="soundBtn" class="hud-btn" title="Toggle sound">🔊 SOUND ON</button>
                 <button id="pauseBtn" class="hud-btn pause-btn" title="Pause game">⏸ PAUSE</button>
+                <span id="dailyIndicator" class="hud-daily-indicator hidden"></span>
             </div>
         </div>
 
@@ -118,6 +119,7 @@
                 <button id="achievMenuBtn" class="pause-menu-btn achievements-btn">🏆 ACHIEVEMENTS</button>
                 <button id="missionMenuBtn" class="pause-menu-btn missions-btn">🎯 MISSIONS</button>
                 <button id="pauseLevelSelectBtn" class="pause-menu-btn levelselect-btn">🎯 LEVEL SELECT</button>
+                <button id="pauseDailyRewardsBtn" class="pause-menu-btn dailyrewards-btn">🎁 DAILY REWARDS</button>
                 <button id="pauseWorldMapBtn" class="pause-menu-btn worldmap-btn">🗺 WORLD MAP</button>
                 <button id="resetRecordsBtn" class="pause-menu-btn reset-btn">♻ RESET RECORDS</button>
                 <button id="resetAchievBtn" class="pause-menu-btn reset-achiev-btn">RESET ACHIEVEMENTS</button>
@@ -162,6 +164,20 @@
                 </div>
             </div>
 
+            <!-- Day 18: Daily Rewards screen -->
+            <div id="dailyRewardsScreen" class="hidden">
+                <h2>MARIO PLATFORM ADVENTURE</h2>
+                <p class="ls-subtitle">DAILY REWARDS</p>
+                <div id="dailyRewardsStreak" class="dr-streak"></div>
+                <div id="dailyRewardsCalendar" class="dr-calendar"></div>
+                <div id="dailyRewardsStatus" class="dr-status"></div>
+                <button id="dailyRewardsClaimBtn" class="dr-claim-btn">CLAIM REWARD</button>
+                <button id="dailyRewardsCloseBtn" class="ls-close-btn">BACK</button>
+            </div>
+
+            <!-- Day 18: Daily Rewards claim notification -->
+            <div id="dailyRewardsNotices"></div>
+
             <!-- Day 14: Level Select screen -->
             <div id="levelSelectScreen" class="hidden">
                 <h2>MARIO PLATFORM ADVENTURE</h2>
@@ -193,6 +209,14 @@
                     <div class="wm-challenge-name" id="wmChallengeName"></div>
                     <div class="wm-challenge-status" id="wmChallengeStatus"></div>
                     <button id="wmChallengeBtn" class="wm-challenge-btn">VIEW CHALLENGE</button>
+                </div>
+                <!-- Day 18: Daily Rewards indicator on World Map -->
+                <div id="worldMapDailyRewards" class="wm-dailyrewards">
+                    <div class="wm-dr-badge">DAILY</div>
+                    <div class="wm-dr-title">DAILY REWARDS</div>
+                    <div class="wm-dr-sub">RETURN EVERY DAY</div>
+                    <div class="wm-dr-status" id="wmDrStatus"></div>
+                    <button id="wmDrBtn" class="wm-dr-btn">VIEW REWARDS</button>
                 </div>
                 <button id="worldMapCloseBtn" class="ls-close-btn">BACK</button>
             </div>
