@@ -11,9 +11,9 @@
    respawns the player at the active checkpoint with a short
    invulnerability. At zero lives the run ends with GAME OVER.
 
-   Day 7: Level 3 ends in a boss arena. The boss has 5 health,
-   telegraphed charge attacks, and seals the final goal behind a
-   gate until it is defeated by stomping.
+   Day 7: the Final Fortress (Level 6) ends in a boss arena.
+   The boss has telegraphed charge attacks, and seals the final
+   goal behind a gate until it is defeated by stomping.
    ============================================================ */
 
 /* ===== ELEMENT REFERENCES ===== */
@@ -683,9 +683,12 @@ var worldMapPrevState = null;          /* gameState saved when the map opened */
 
 /* Day 14: level info for the Level Select screen */
 var LEVEL_INFO = [
-    { difficulty: "EASY",   diffClass: "easy",   desc: "Learn the basics and collect coins." },
-    { difficulty: "MEDIUM", diffClass: "medium", desc: "Cross dangerous pits and avoid faster enemies." },
-    { difficulty: "HARD",   diffClass: "hard",   desc: "Master difficult platforms and defeat the boss." }
+    { difficulty: "EASY",       diffClass: "easy",        desc: "Learn the basics and collect coins." },
+    { difficulty: "EASY+",      diffClass: "easyplus",    desc: "Cross dangerous pits and avoid faster enemies." },
+    { difficulty: "MEDIUM",     diffClass: "medium",      desc: "Master dangerous platforms, pits and aggressive enemies." },
+    { difficulty: "MEDIUM+",    diffClass: "mediumplus",  desc: "Narrow caverns, vertical climbs and relentless chasers." },
+    { difficulty: "HARD",       diffClass: "hard",        desc: "Outrun the volcano across blazing, crumbling ledges." },
+    { difficulty: "EXPERT",     diffClass: "expert",      desc: "The final fortress: prove your mastery and slay the boss." }
 ];
 
 /* Loop handling: only ever one animation frame scheduled at a time */
@@ -714,7 +717,7 @@ var CHASE_ENTER_X = 160;
 var CHASE_EXIT_X = 210;
 var CHASE_RANGE_Y = 70;
 
-/* ===== BOSS CONSTANTS (Day 7, used only in Level 3) ===== */
+/* ===== BOSS CONSTANTS (Day 7, used in Level 6) ===== */
 
 var BOSS_W = 72;                  /* hitbox size, matches the CSS */
 var BOSS_H = 64;
@@ -847,26 +850,12 @@ var LEVELS = [
         ]
     },
 
-    /* ---- LEVEL 3: HARD ------------------------------------
-       Four small islands, long pits, stepping stones over the
+    /* ---- LEVEL 3: DANGER VALLEY (MEDIUM) -------------------
+       Multiple islands, deadly pits, stepping stones over the
        gaps and a ferry platform across the wide middle pit.
-       The level ends in a BOSS ARENA: one wide floor with two
-       perch platforms for safe stomping. The boss patrols the
-       arena and an energy gate seals the goal flag until the
-       boss is defeated.
-
-       Boss config (only levels with a "boss" object get one):
-         x, y          spawn spot (right side, away from the door)
-         minX / maxX   patrol limits; maxX is the boss's right EDGE,
-                       so it can never touch the gate or the goal
-         speed         patrol speed
-         chaseSpeed    speed while walking toward the player
-         health        stomps needed to win (5)
-         aggroEnterX / aggroExitX  start/stop following the player
-         attackTriggerX  distance at which a charge attack begins
-         chargeSpeed   speed of the charge dash
-         gateX         x position of the goal-sealing energy gate
-         arenaEnterX   player x that triggers "DEFEAT THE BOSS!" */
+       Faster patrols, a chaser and trickier platform hops. The
+       wide floor near the goal is just solid ground (the boss
+       arena lives in Level 6). */
     {
         theme: "theme-3",
         start: { x: 50, y: 55 },
@@ -874,15 +863,14 @@ var LEVELS = [
         platforms: [
             { left: 0,   bottom: 0,   width: 200, height: 55 },
             { left: 340, bottom: 0,   width: 160, height: 55 },
-            /* Boss arena: one continuous floor, no pits to fall in */
+            /* Wide floor near the goal (no boss here anymore) */
             { left: 640, bottom: 0,   width: 260, height: 55 },
             { left: 225, bottom: 130, width: 60,  height: 18 },
             { left: 360, bottom: 140, width: 90,  height: 20 },
             { left: 470, bottom: 210, width: 80,  height: 20 },
             { left: 380, bottom: 280, width: 90,  height: 20 },
             { left: 560, bottom: 250, width: 80,  height: 20 },
-            /* Arena perches: hop on these to stomp the boss safely.
-               Both are reachable from the floor (~93px and ~133px). */
+            /* High perches over the final floor (optional route) */
             { left: 655, bottom: 130, width: 105, height: 18 },
             { left: 800, bottom: 170, width: 80,  height: 18 }
         ],
@@ -919,16 +907,214 @@ var LEVELS = [
         ],
         checkpoints: [
             { x: 350, y: 55 },    /* after the long first pit */
-            { x: 700, y: 148 }    /* on the first arena perch, above the boss */
+            { x: 700, y: 148 }    /* on the high perch near the goal */
+        ]
+    },
+
+    /* ---- LEVEL 4: CRUSHING CAVERNS (MEDIUM+) ---------------
+       Narrow platforms over deadly pits, two vertical climbs,
+       moving platforms of different speeds, stacked enemies and
+       a faster chaser. Very little safe ground: you must keep
+       moving up and across. No boss here. */
+    {
+        theme: "theme-4",
+        start: { x: 50, y: 55 },
+        goalX: 855,
+        platforms: [
+            { left: 0,   bottom: 0,   width: 150, height: 55 },  /* start island */
+            { left: 240, bottom: 0,   width: 130, height: 55 },  /* island 2 */
+            { left: 460, bottom: 0,   width: 130, height: 55 },  /* island 3 */
+            { left: 690, bottom: 0,   width: 210, height: 55 },  /* goal island */
+            /* vertical section 1: zig-zag stepping stones */
+            { left: 172, bottom: 110, width: 55,  height: 16 },
+            { left: 300, bottom: 175, width: 55,  height: 16 },
+            { left: 205, bottom: 240, width: 70,  height: 16 },
+            /* vertical section 2: taller climb to the high route */
+            { left: 395, bottom: 130, width: 55,  height: 16 },
+            { left: 500, bottom: 205, width: 55,  height: 16 },
+            { left: 415, bottom: 285, width: 70,  height: 16 },
+            { left: 540, bottom: 340, width: 55,  height: 16 },
+            /* high route over the goal island */
+            { left: 700, bottom: 200, width: 60,  height: 16 },
+            { left: 800, bottom: 160, width: 55,  height: 16 }
+        ],
+        movers: [
+            /* fast horizontal shuttle bridging the middle pit */
+            { left: 320, bottom: 90,  width: 60, height: 18,
+              minX: 320, maxX: 430, minY: 90, maxY: 90, speedX: 2.6, speedY: 0 },
+            /* slow vertical elevator up the tall middle section */
+            { left: 480, bottom: 100, width: 55, height: 18,
+              minX: 480, maxX: 480, minY: 100, maxY: 330, speedX: 0, speedY: 2.2 }
+        ],
+        coins: [
+            { x: 120, y: 62 },
+            { x: 200, y: 137 },
+            { x: 327, y: 202 },
+            { x: 240, y: 267 },
+            { x: 400, y: 157 },
+            { x: 527, y: 232 },
+            { x: 760, y: 227 },
+            { x: 827, y: 187 }
+        ],
+        powerUps: [
+            { x: 260, y: 75,  type: "shield" },
+            { x: 440, y: 162, type: "doublejump" },
+            { x: 560, y: 367, type: "superjump" },
+            { x: 725, y: 227, type: "speedboost" }
+        ],
+        enemies: [
+            { type: "patrol", x: 140, y: 55, dir: 1,  speed: 2.6, minX: 115, maxX: 145 },
+            { type: "patrol", x: 320, y: 55, dir: 1,  speed: 2.8, minX: 243, maxX: 365 },
+            { type: "patrol", x: 490, y: 55, dir: -1, speed: 2.7, minX: 462, maxX: 585 },
+            { type: "chaser", x: 820, y: 55, dir: -1, speed: 2.0, chaseSpeed: 3.8,
+              minX: 695, maxX: 830 }
+        ],
+        checkpoints: [
+            { x: 240, y: 55 },    /* after the first pit */
+            { x: 690, y: 55 }     /* at the goal island */
+        ]
+    },
+
+    /* ---- LEVEL 5: VOLCANO RUN (HARD) -----------------------
+       Long gaps, tiny stepping platforms, fast movers, several
+       enemies sharing an area and two chasers. Forcing double
+       jump / shield pickups is expected, but every jump stays
+       within reach. Ends in the goal flag (no boss). */
+    {
+        theme: "theme-5",
+        start: { x: 50, y: 55 },
+        goalX: 855,
+        platforms: [
+            { left: 0,   bottom: 0,   width: 120, height: 55 },  /* start island */
+            { left: 240, bottom: 0,   width: 110, height: 55 },  /* island 2 */
+            { left: 470, bottom: 0,   width: 110, height: 55 },  /* island 3 */
+            { left: 700, bottom: 0,   width: 200, height: 55 },  /* goal island */
+            /* small hopping stones across the long pits */
+            { left: 130, bottom: 120, width: 48,  height: 16 },
+            { left: 200, bottom: 235, width: 42,  height: 16 },
+            { left: 322, bottom: 150, width: 48,  height: 16 },
+            { left: 388, bottom: 265, width: 42,  height: 16 },
+            { left: 492, bottom: 180, width: 48,  height: 16 },
+            { left: 560, bottom: 295, width: 42,  height: 16 },
+            /* high route near the goal */
+            { left: 715, bottom: 220, width: 50,  height: 16 },
+            { left: 805, bottom: 175, width: 45,  height: 16 }
+        ],
+        movers: [
+            /* fast horizontal ferry over a wide gap */
+            { left: 255, bottom: 60,  width: 70, height: 18,
+              minX: 255, maxX: 455, minY: 60, maxY: 60, speedX: 3.0, speedY: 0 },
+            /* quick vertical shuttle on the last section */
+            { left: 750, bottom: 90,  width: 55, height: 18,
+              minX: 750, maxX: 750, minY: 90, maxY: 300, speedX: 0, speedY: 2.8 }
+        ],
+        coins: [
+            { x: 90,  y: 62 },
+            { x: 154, y: 147 },
+            { x: 221, y: 262 },
+            { x: 346, y: 177 },
+            { x: 409, y: 292 },
+            { x: 516, y: 207 },
+            { x: 581, y: 322 },
+            { x: 740, y: 247 },
+            { x: 827, y: 202 }
+        ],
+        powerUps: [
+            { x: 200, y: 75,  type: "shield" },
+            { x: 320, y: 152, type: "doublejump" },
+            { x: 500, y: 210, type: "superjump" },
+            { x: 810, y: 300, type: "speedboost" }
+        ],
+        enemies: [
+            { type: "patrol",  x: 92,  y: 55, dir: 1,  speed: 2.9, minX: 95, maxX: 115 },
+            { type: "chaser",  x: 250, y: 55, dir: 1,  speed: 2.2, chaseSpeed: 4.1,
+              minX: 242, maxX: 348 },
+            { type: "patrol", x: 480, y: 55,  dir: 1,  speed: 3.0, minX: 473, maxX: 575 },
+            { type: "chaser", x: 820, y: 55,  dir: -1, speed: 2.3, chaseSpeed: 4.3,
+              minX: 705, maxX: 830 },
+            { type: "patrol", x: 740, y: 236, dir: -1, speed: 2.4, minX: 718, maxX: 752 }
+        ],
+        checkpoints: [
+            { x: 470, y: 55 },    /* after the first two pits */
+            { x: 700, y: 55 }     /* at the goal island */
+        ]
+    },
+
+    /* ---- LEVEL 6: FINAL FORTRESS (EXPERT) ------------------
+       Small platforms, long gaps, complex vertical sections and
+       the hardest platforming in the game, capped by the boss
+       arena. Completing it triggers the final YOU WIN flow. */
+    {
+        theme: "theme-6",
+        start: { x: 50, y: 55 },
+        goalX: 855,
+        platforms: [
+            { left: 0,   bottom: 0,   width: 100, height: 55 },  /* start landing */
+            { left: 240, bottom: 0,   width: 100, height: 55 },  /* tower base */
+            { left: 500, bottom: 0,   width: 60,  height: 55 },  /* mid tower */
+            { left: 640, bottom: 0,   width: 260, height: 55 },  /* boss arena floor */
+            /* vertical section 1: tight stairway up and across */
+            { left: 120, bottom: 120, width: 46,  height: 16 },
+            { left: 195, bottom: 210, width: 46,  height: 16 },
+            { left: 125, bottom: 295, width: 55,  height: 16 },
+            /* vertical section 2: higher leap over the second pit */
+            { left: 380, bottom: 130, width: 46,  height: 16 },
+            { left: 470, bottom: 215, width: 46,  height: 16 },
+            { left: 385, bottom: 300, width: 60,  height: 16 },
+            /* bonus platform above the mid tower */
+            { left: 555, bottom: 160, width: 50,  height: 16 },
+            /* arena perches for safe stomping */
+            { left: 655, bottom: 130, width: 100, height: 16 },
+            { left: 790, bottom: 170, width: 75,  height: 16 }
+        ],
+        movers: [
+            /* fast ferry over the wide middle gap */
+            { left: 260, bottom: 60,  width: 70, height: 18,
+              minX: 260, maxX: 470, minY: 60, maxY: 60, speedX: 3.2, speedY: 0 },
+            /* quick vertical lift beside the mid tower */
+            { left: 585, bottom: 100, width: 50, height: 18,
+              minX: 585, maxX: 585, minY: 100, maxY: 250, speedX: 0, speedY: 2.9 }
+        ],
+        coins: [
+            { x: 80,  y: 62 },
+            { x: 143, y: 147 },
+            { x: 218, y: 237 },
+            { x: 148, y: 322 },
+            { x: 403, y: 157 },
+            { x: 493, y: 242 },
+            { x: 580, y: 187 },
+            { x: 700, y: 157 },
+            { x: 820, y: 197 },
+            { x: 770, y: 62 }
+        ],
+        powerUps: [
+            { x: 290, y: 62,  type: "shield" },
+            { x: 155, y: 325, type: "doublejump" },
+            { x: 300, y: 130, type: "superjump" },
+            { x: 750, y: 197, type: "speedboost" }
+        ],
+        enemies: [
+            { type: "chaser",  x: 260, y: 55,  dir: 1,  speed: 2.4, chaseSpeed: 4.4,
+              minX: 260, maxX: 338 },
+            { type: "patrol",  x: 520, y: 55,  dir: 1,  speed: 3.1, minX: 505, maxX: 552 },
+            { type: "patrol",  x: 570, y: 176, dir: -1, speed: 2.5, minX: 556, maxX: 604 },
+            { type: "chaser",  x: 690, y: 55,  dir: -1, speed: 2.4, chaseSpeed: 4.5,
+              minX: 644, maxX: 698 },
+            { type: "patrol",  x: 720, y: 55,  dir: 1,  speed: 2.6, minX: 698, maxX: 760 }
+        ],
+        checkpoints: [
+            { x: 240, y: 55 },    /* after the first tower */
+            { x: 500, y: 55 },    /* after the second pit */
+            { x: 700, y: 146 }    /* on the arena perch, above the boss */
         ],
         boss: {
             x: 762, y: 55,
             minX: 706, maxX: 830,      /* maxX = right edge, before the gate */
-            speed: 1.3, chaseSpeed: 2.6,
-            health: 5,
-            aggroEnterX: 190, aggroExitX: 260,
-            attackTriggerX: 170,
-            chargeSpeed: 5.4,
+            speed: 1.5, chaseSpeed: 3.0,
+            health: 6,                 /* tougher than the earlier boss */
+            aggroEnterX: 200, aggroExitX: 280,
+            attackTriggerX: 180,
+            chargeSpeed: 6.0,
             gateX: 836,
             arenaEnterX: 600
         }
@@ -1140,7 +1326,7 @@ function defeatEnemy(e) {
 }
 
 /* ============================================================
-   DAY 7: BOSS BATTLE (Level 3 only)
+   DAY 7: BOSS BATTLE (Level 6 - Final Fortress)
 
    The boss has five states, all visible through CSS classes so
    the player can read and dodge it:
@@ -1319,9 +1505,13 @@ function defeatBoss(b) {
     showBanner("BOSS DEFEATED!");
     spawnBossHitFx(b.x + BOSS_W / 2, b.y + BOSS_H);
     sfxBossDefeated();
-    /* Day 13: a level-3 boss kill feeds the statistics + achievement */
+    /* Day 13: a boss kill feeds the statistics + achievements.
+       The Level 6 (final fortress) boss also unlocks FINAL FORTRESS */
     addStat("bosses", 1);
     unlockAchievement("bossSlayer");
+    if (currentLevelIndex === LEVELS.length - 1) {
+        unlockAchievement("finalFortress");
+    }
 }
 
 /* Small one-shot visual effects for boss hits. Everything removes
@@ -1521,7 +1711,8 @@ function loadLevel(index) {
     buildLevel(def);
 
     /* Visual atmosphere for this level */
-    game.classList.remove("theme-1", "theme-2", "theme-3");
+    game.classList.remove("theme-1", "theme-2", "theme-3",
+                          "theme-4", "theme-5", "theme-6");
     game.classList.add(def.theme);
 
     /* Move the goal flag */
@@ -1576,6 +1767,9 @@ function loadLevel(index) {
     /* Day 13: entering a level unlocks the matching achievement */
     if (index >= 1) unlockAchievement("level2");
     if (index >= 2) unlockAchievement("level3");
+    if (index >= 3) { unlockAchievement("level4"); unlockAchievement("halfWayThere"); }
+    if (index >= 4) unlockAchievement("level5");
+    if (index >= 5) unlockAchievement("level6");
 
     /* Day 16: reset temporary mission attempt progress (coins,
        enemies, timer, no-death). Persistent completion survives. */
@@ -2332,33 +2526,39 @@ var LEVELS_REPLAYED_KEY = "marioGameLevelsReplayed";    /* number */
 var LEVEL_COMPLETED_KEY = "marioGameLevelCompleted";    /* JSON array of booleans */
 
 /* In-memory state */
-var levelUnlocked = [true, false, false];  /* level 1 always unlocked */
-var levelBestScore = [0, 0, 0];
-var levelBestCoins = [0, 0, 0];           /* best coins collected per level */
+var levelUnlocked = [true, false, false, false, false, false];  /* level 1 always unlocked */
+var levelBestScore = [0, 0, 0, 0, 0, 0];
+var levelBestCoins = [0, 0, 0, 0, 0, 0];  /* best coins collected per level */
 var levelsCompleted = 0;
 var levelsReplayed = 0;
-var levelCompleted = [false, false, false];/* explicit per-level completion flag */
+var levelCompleted = [false, false, false, false, false, false];/* explicit per-level completion flag */
 
-/* Level coins count: how many coins each level has (filled on build) */
-var levelCoinCounts = [5, 6, 8];          /* matches LEVELS data */
+/* Level coins count: how many coins each level has (derived from LEVELS) */
+var levelCoinCounts = [];
 
-/* Read a JSON array from localStorage with a fallback default */
+/* Read a JSON array from localStorage with a fallback default.
+   Old saves stored only 3 levels; values are padded out to the
+   current LEVELS.length so no progress is lost during migration. */
 function readJsonArray(key, fallback) {
+    var targetLen = fallback.length;
     try {
         var raw = window.localStorage.getItem(key);
-        if (raw === null) return fallback;
+        if (raw === null) return fallback.slice();
         var arr = JSON.parse(raw);
-        if (Array.isArray(arr) && arr.length === fallback.length) {
+        if (Array.isArray(arr) && arr.length > 0 &&
+            arr.length <= targetLen) {
             for (var i = 0; i < arr.length; i++) {
                 var v = Number(arr[i]);
-                if (!isFinite(v) || v < 0) return fallback;
+                if (!isFinite(v) || v < 0) return fallback.slice();
             }
-            return arr;
+            var out = fallback.slice();
+            for (var p = 0; p < arr.length; p++) out[p] = arr[p];
+            return out;
         }
     } catch (err) {
         /* corrupt data: use fallback */
     }
-    return fallback;
+    return fallback.slice();
 }
 
 /* Write a JSON array to localStorage */
@@ -2372,28 +2572,36 @@ function writeJsonArray(key, arr) {
 
 /* Load all level select data from localStorage */
 function loadLevelSelectData() {
-    levelUnlocked = readJsonArray(LEVEL_UNLOCK_KEY, [true, false, false]);
+    levelUnlocked = readJsonArray(LEVEL_UNLOCK_KEY, [true, false, false, false, false, false]);
     /* Always ensure level 1 is unlocked */
     levelUnlocked[0] = true;
-    levelBestScore = readJsonArray(LEVEL_BEST_SCORE_KEY, [0, 0, 0]);
-    levelBestCoins = readJsonArray(LEVEL_BEST_COINS_KEY, [0, 0, 0]);
+
+    levelBestScore = readJsonArray(LEVEL_BEST_SCORE_KEY, [0, 0, 0, 0, 0, 0]);
+    levelBestCoins = readJsonArray(LEVEL_BEST_COINS_KEY, [0, 0, 0, 0, 0, 0]);
     levelsCompleted = readNumber(LEVELS_COMPLETED_KEY, 0);
     levelsReplayed = readNumber(LEVELS_REPLAYED_KEY, 0);
 
-    /* Completion flags: load as an array of booleans */
-    levelCompleted = [false, false, false];
+    /* Completion flags: load as an array of booleans, padding old
+       3-level saves out to the current level count. */
+    levelCompleted = [false, false, false, false, false, false];
     try {
         var raw = window.localStorage.getItem(LEVEL_COMPLETED_KEY);
         if (raw) {
             var arr = JSON.parse(raw);
-            if (Array.isArray(arr) && arr.length === 3) {
-                for (var i = 0; i < 3; i++) {
+            if (Array.isArray(arr)) {
+                for (var i = 0; i < arr.length && i < 6; i++) {
                     levelCompleted[i] = !!arr[i];
                 }
             }
         }
     } catch (err) {
         /* corrupt data: use defaults */
+    }
+
+    /* Coin totals are derived from the level data, never hardcoded */
+    levelCoinCounts = [];
+    for (var c = 0; c < LEVELS.length; c++) {
+        levelCoinCounts[c] = LEVELS[c].coins.length;
     }
 }
 
@@ -2432,29 +2640,49 @@ function saveLevelStats(levelIdx, scoreVal, coinsVal) {
     }
     levelCompleted[levelIdx] = true;
     persistLevelSelectData();
+    checkMasterExplorer();
 }
 
-/* Check the Level Explorer achievement: have all 3 levels been
-   completed at least once? Uses a separate persistent flag
-   per level to track this independently of replay data. */
+/* MASTER EXPLORER: every level has been completed at least once */
+function checkMasterExplorer() {
+    for (var i = 0; i < LEVELS.length; i++) {
+        if (!levelCompleted[i]) return;
+    }
+    unlockAchievement("masterExplorer");
+}
+
+/* Check the Level Explorer achievement: have all LEVELS.length
+   levels been completed at least once? Uses a separate persistent
+   flag per level to track this independently of replay data. */
 var LEVEL_EXPLORED_KEY = "marioGameLevelsExplored";
 
 function checkLevelExplorer() {
     var explored;
+    var total = LEVELS.length;
+    var fresh = [];
+    for (var fi = 0; fi < total; fi++) fresh.push(false);
     try {
         var raw = window.localStorage.getItem(LEVEL_EXPLORED_KEY);
-        explored = raw ? JSON.parse(raw) : [false, false, false];
-        if (!Array.isArray(explored) || explored.length !== 3) {
-            explored = [false, false, false];
+        explored = raw ? JSON.parse(raw) : fresh.slice();
+        if (!Array.isArray(explored)) explored = fresh.slice();
+        /* Pad old 3-level data out to the current count */
+        var out = fresh.slice();
+        for (var pd = 0; pd < explored.length && pd < total; pd++) {
+            out[pd] = !!explored[pd];
         }
+        explored = out;
     } catch (err) {
-        explored = [false, false, false];
+        explored = fresh.slice();
     }
     explored[currentLevelIndex] = true;
     try {
         window.localStorage.setItem(LEVEL_EXPLORED_KEY, JSON.stringify(explored));
     } catch (err) { /* storage unavailable */ }
-    if (explored[0] && explored[1] && explored[2]) {
+    var allDone = true;
+    for (var si = 0; si < explored.length; si++) {
+        if (!explored[si]) { allDone = false; break; }
+    }
+    if (allDone) {
         unlockAchievement("levelExplorer");
     }
 }
@@ -2676,9 +2904,10 @@ pauseLevelSelectBtnEl.onclick = openLevelSelect;
    DAY 15: WORLD MAP
    ============================================================ */
 
-/* Whether the WORLD EXPLORER achievement is pending (all three
-   nodes visited). Tracked so it only unlocks once. */
-var worldExplorerVisited = [false, false, false];
+/* Whether the WORLD EXPLORER achievement is pending (every level
+   node visited). Tracked so it only unlocks once. Old 3-level
+   saves are padded out during load. */
+var worldExplorerVisited = [false, false, false, false, false, false];
 
 /* Determine a node's status: "locked", "available" or "completed" */
 function worldMapStatus(idx) {
@@ -2695,7 +2924,7 @@ function worldMapStatusInfo(idx) {
     return { status: "locked", icon: "\uD83D\uDD12", label: "LOCKED" };
 }
 
-/* Render the three level nodes connected by a vertical line */
+/* Render the level nodes connected by a vertical line */
 function renderWorldMapNodes(selectedIdx) {
     var html = "";
     for (var i = 0; i < LEVELS.length; i++) {
@@ -2852,11 +3081,14 @@ function handleWorldMapNodeClick(idx) {
     renderWorldMapDetails(idx);
 }
 
-/* Track WORLD EXPLORER: visit all three nodes (once only) */
+/* Track WORLD EXPLORER: visit every level node (once only). Old 3-node
+   saves are padded so a returning player keeps earned progress. */
 function checkWorldExplorer() {
-    if (worldExplorerVisited[0] &&
-        worldExplorerVisited[1] &&
-        worldExplorerVisited[2]) {
+    var allVisited = true;
+    for (var i = 0; i < LEVELS.length; i++) {
+        if (!worldExplorerVisited[i]) { allVisited = false; break; }
+    }
+    if (allVisited) {
         unlockAchievement("worldExplorer");
     }
 }
@@ -2972,12 +3204,18 @@ var ACHIEVEMENTS = [
     { id: "doubleJumper", title: "DOUBLE JUMPER", description: "Successfully perform a Double Jump." },
     { id: "level2",       title: "LEVEL 2",       description: "Reach Level 2." },
     { id: "level3",       title: "LEVEL 3",       description: "Reach Level 3." },
-    { id: "bossSlayer",   title: "BOSS SLAYER",   description: "Defeat the Level 3 boss." },
+    { id: "level4",       title: "LEVEL 4",       description: "Reach Level 4." },
+    { id: "level5",       title: "LEVEL 5",       description: "Reach Level 5." },
+    { id: "level6",       title: "LEVEL 6",       description: "Reach Level 6 - the Final Fortress." },
+    { id: "bossSlayer",   title: "BOSS SLAYER",   description: "Defeat the Final Fortress boss." },
     { id: "speedrunner",  title: "SPEEDRUNNER",   description: "Complete the game." },
     { id: "highScorer",   title: "HIGH SCORER",   description: "Achieve a new personal high score." },
-    { id: "levelExplorer",title: "LEVEL EXPLORER",description: "Complete or replay all three levels." },
-    { id: "worldExplorer", title: "WORLD EXPLORER", description: "Open the World Map and visit all three level nodes." },
-    { id: "missionMaster", title: "MISSION MASTER", description: "Complete every mission across all three levels." },
+    { id: "levelExplorer",title: "LEVEL EXPLORER",description: "Complete or replay all six levels." },
+    { id: "halfWayThere", title: "HALF WAY THERE", description: "Reach Level 4 - you are halfway through the journey." },
+    { id: "worldExplorer", title: "WORLD EXPLORER", description: "Visit every level node on the World Map." },
+    { id: "masterExplorer",title: "MASTER EXPLORER", description: "Complete all six levels at least once." },
+    { id: "finalFortress",title: "FINAL FORTRESS", description: "Slay the boss and conquer the Final Fortress." },
+    { id: "missionMaster", title: "MISSION MASTER", description: "Complete every mission across all six levels." },
     { id: "challengeChampion", title: "CHALLENGE CHAMPION", description: "Complete 3 Challenge Mode challenges." },
     { id: "challengeMaster", title: "CHALLENGE MASTER", description: "Complete 5 Challenge Mode challenges." },
     { id: "dailyVisitor", title: "DAILY VISITOR", description: "Claim your first daily reward." },
@@ -3256,17 +3494,8 @@ function renderAchievPanel() {
         '<div class="stat-row">Levels Replayed: <b>' + levelsReplayed + '</b></div>' +
         '<div class="stat-row">Missions Completed (total): <b>' +
             ACHIEV_STATS.missionsCompleted + '</b></div>' +
-        '<div class="stat-row">Missions (L1): <b>' + missionsCompletedForLevel(0) + '/' +
-            MISSIONS_LIST[0].length + '</b> | Missions (L2): <b>' +
-            missionsCompletedForLevel(1) + '/' + MISSIONS_LIST[1].length + '</b></div>' +
-        '<div class="stat-row">Missions (L3): <b>' + missionsCompletedForLevel(2) + '/' +
-            MISSIONS_LIST[2].length + '</b></div>' +
-        '<div class="stat-row">Best Score (L1): <b>' + levelBestScore[0] + '</b> | ' +
-            'Best Coins (L1): <b>' + levelBestCoins[0] + '/' + levelCoinCounts[0] + '</b></div>' +
-        '<div class="stat-row">Best Score (L2): <b>' + levelBestScore[1] + '</b> | ' +
-            'Best Coins (L2): <b>' + levelBestCoins[1] + '/' + levelCoinCounts[1] + '</b></div>' +
-        '<div class="stat-row">Best Score (L3): <b>' + levelBestScore[2] + '</b> | ' +
-            'Best Coins (L3): <b>' + levelBestCoins[2] + '/' + levelCoinCounts[2] + '</b></div>' +
+        getMissionsStatsHtml() +
+        getBestScoresStatsHtml() +
         '<div class="stat-row">Daily Rewards Claimed: <b>' +
             ACHIEV_STATS.dailyRewardsClaimed + '</b></div>' +
         '<div class="stat-row">Current Daily Streak: <b>' +
@@ -3275,6 +3504,27 @@ function renderAchievPanel() {
             ACHIEV_STATS.bestDailyStreak + ' days</b></div>' +
         '<div class="stat-row">Reward Cycles Completed: <b>' +
             ACHIEV_STATS.rewardCyclesCompleted + '</b></div>';
+}
+
+/* One line per level with its mission progress */
+function getMissionsStatsHtml() {
+    var html = "";
+    for (var i = 0; i < LEVELS.length; i++) {
+        html += '<div class="stat-row">Missions (L' + (i + 1) + '): <b>' +
+            missionsCompletedForLevel(i) + '/' + MISSIONS_LIST[i].length + '</b></div>';
+    }
+    return html;
+}
+
+/* One line per level with best score and best coins */
+function getBestScoresStatsHtml() {
+    var html = "";
+    for (var i = 0; i < LEVELS.length; i++) {
+        html += '<div class="stat-row">Best Score (L' + (i + 1) + '): <b>' +
+            levelBestScore[i] + '</b> | Best Coins (L' + (i + 1) + '): <b>' +
+            levelBestCoins[i] + '/' + levelCoinCounts[i] + '</b></div>';
+    }
+    return html;
 }
 
 /* Reset only the achievement data (unlocks + stats), after asking
@@ -3399,6 +3649,57 @@ var MISSIONS_LIST = {
         { id: "level3_nodamage", title: "Flawless",
           description: "Finish Level 3 without losing a life.",
           type: "NO_DEATH", target: null, reward: 500 }
+    ],
+    3: [
+        { id: "level4_coins",    title: "Cavern Hunter",
+          description: "Collect 6 coins in Level 4.",
+          type: "COINS", target: 6, reward: 300 },
+        { id: "level4_enemies",  title: "Cave Crusher",
+          description: "Defeat 3 enemies in Level 4.",
+          type: "ENEMIES", target: 3, reward: 350 },
+        { id: "level4_combo",    title: "Combo Wrecker",
+          description: "Reach a Combo of x7 in Level 4.",
+          type: "COMBO", target: 7, reward: 350 },
+        { id: "level4_speed",    title: "Rapid",
+          description: "Finish Level 4 within 85 seconds.",
+          type: "TIME", target: 85, reward: 400 },
+        { id: "level4_nodamage", title: "Survivor",
+          description: "Finish Level 4 without losing a life.",
+          type: "NO_DEATH", target: null, reward: 500 }
+    ],
+    4: [
+        { id: "level5_coins",    title: "Volcano Hunter",
+          description: "Collect 7 coins in Level 5.",
+          type: "COINS", target: 7, reward: 350 },
+        { id: "level5_enemies",  title: "Lava Stomper",
+          description: "Defeat 4 enemies in Level 5.",
+          type: "ENEMIES", target: 4, reward: 400 },
+        { id: "level5_combo",    title: "Inferno Combo",
+          description: "Reach a Combo of x8 in Level 5.",
+          type: "COMBO", target: 8, reward: 400 },
+        { id: "level5_speed",    title: "Scorching",
+          description: "Finish Level 5 within 80 seconds.",
+          type: "TIME", target: 80, reward: 450 },
+        { id: "level5_nodamage", title: "Untouchable",
+          description: "Finish Level 5 without losing a life.",
+          type: "NO_DEATH", target: null, reward: 600 }
+    ],
+    5: [
+        { id: "level6_coins",    title: "Forge Runner",
+          description: "Collect 8 coins in Level 6.",
+          type: "COINS", target: 8, reward: 400 },
+        { id: "level6_enemies",  title: "Turret Break",
+          description: "Defeat 4 enemies in Level 6.",
+          type: "ENEMIES", target: 4, reward: 450 },
+        { id: "level6_combo",    title: "Final Combo",
+          description: "Reach a Combo of x6 in Level 6.",
+          type: "COMBO", target: 6, reward: 400 },
+        { id: "level6_speed",    title: "Flash",
+          description: "Finish Level 6 within 100 seconds.",
+          type: "TIME", target: 100, reward: 500 },
+        { id: "level6_nodamage", title: "Legend",
+          description: "Finish Level 6 without losing a life.",
+          type: "NO_DEATH", target: null, reward: 700 }
     ]
 };
 
@@ -3914,12 +4215,45 @@ var CHALLENGES = [
       level: 2, difficulty: "Hard",   type: "COINS",    target: 6,  timeLimit: 55,  reward: 600 },
     { id: "challenge_12", name: "Enemy Hunter",  description: "Stomp 4 foes while crossing Level 3.",
       level: 2, difficulty: "Hard",   type: "ENEMIES",  target: 4,  timeLimit: 55,  reward: 650 },
-    { id: "challenge_13", name: "Speed Run",     description: "Beat Level 3 (boss included) with a fast time.",
+    { id: "challenge_13", name: "Speed Run",     description: "Beat Level 3's dangerous terrain with a fast time.",
       level: 2, difficulty: "Hard",   type: "TIME",     target: 95, reward: 600 },
     { id: "challenge_14", name: "Perfect Run",   description: "Clear Level 3 flawlessly: no deaths, on the clock.",
       level: 2, difficulty: "Hard",   type: "PERFECT",  target: 130,               reward: 900 },
-    { id: "challenge_15", name: "Survival",      description: "Slay the boss and finish Level 3 untouched.",
-      level: 2, difficulty: "Hard",   type: "NO_DEATH", target: null,              reward: 800 }
+    { id: "challenge_15", name: "Survival",      description: "Finish Level 3 untouched.",
+      level: 2, difficulty: "Hard",   type: "NO_DEATH", target: null,              reward: 800 },
+    /* Level 4 (Crushing Caverns) */
+    { id: "challenge_16", name: "Coin Rush",     description: "Collect 6 coins through the caverns of Level 4.",
+      level: 3, difficulty: "Medium+", type: "COINS",  target: 6,  timeLimit: 55,  reward: 650 },
+    { id: "challenge_17", name: "Enemy Hunter",  description: "Stomp 3 foes while climbing Level 4.",
+      level: 3, difficulty: "Medium+", type: "ENEMIES", target: 3,  timeLimit: 55,  reward: 650 },
+    { id: "challenge_18", name: "Speed Run",     description: "Rush the narrow caverns of Level 4.",
+      level: 3, difficulty: "Medium+", type: "TIME",    target: 85,               reward: 700 },
+    { id: "challenge_19", name: "Combo Master",  description: "Chain Combo x7 on the cavern ledges.",
+      level: 3, difficulty: "Medium+", type: "COMBO",   target: 7,  timeLimit: 50,  reward: 600 },
+    { id: "challenge_20", name: "Survival",      description: "Survive Level 4: not a single life lost.",
+      level: 3, difficulty: "Hard",   type: "NO_DEATH", target: null,              reward: 850 },
+    /* Level 5 (Volcano Run) */
+    { id: "challenge_21", name: "Coin Rush",     description: "Grab 7 coins across the blazing Level 5.",
+      level: 4, difficulty: "Hard",   type: "COINS",    target: 7,  timeLimit: 45,  reward: 700 },
+    { id: "challenge_22", name: "Enemy Hunter",  description: "Defeat 4 enemies while outrunning the volcano.",
+      level: 4, difficulty: "Hard",   type: "ENEMIES",  target: 4,  timeLimit: 45,  reward: 750 },
+    { id: "challenge_23", name: "Speed Run",     description: "Finish Level 5 in a flash.",
+      level: 4, difficulty: "Hard",   type: "TIME",     target: 80,                reward: 700 },
+    { id: "challenge_24", name: "Perfect Run",   description: "Clear Level 5 flawlessly: no deaths, on the clock.",
+      level: 4, difficulty: "Hard",   type: "PERFECT",  target: 120,               reward: 1000 },
+    { id: "challenge_25", name: "Survival",      description: "Slay every threat and finish Level 5 untouched.",
+      level: 4, difficulty: "Hard",   type: "NO_DEATH", target: null,              reward: 900 },
+    /* Level 6 (Final Fortress) */
+    { id: "challenge_26", name: "Coin Rush",     description: "Collect 8 coins on the path to Level 6's boss.",
+      level: 5, difficulty: "Expert", type: "COINS",    target: 8,  timeLimit: 50,  reward: 800 },
+    { id: "challenge_27", name: "Enemy Hunter",  description: "Stomp 4 adversaries in the Final Fortress.",
+      level: 5, difficulty: "Expert", type: "ENEMIES",  target: 4,  timeLimit: 50,  reward: 850 },
+    { id: "challenge_28", name: "Speed Run",     description: "Beat Level 6 (boss included) with a fast time.",
+      level: 5, difficulty: "Expert", type: "TIME",     target: 100,               reward: 800 },
+    { id: "challenge_29", name: "Perfect Run",   description: "Clear Level 6 flawlessly: no deaths, on the clock.",
+      level: 5, difficulty: "Expert", type: "PERFECT",  target: 150,               reward: 1200 },
+    { id: "challenge_30", name: "Survival",      description: "Slay the Final Fortress boss and finish untouched.",
+      level: 5, difficulty: "Expert", type: "NO_DEATH", target: null,              reward: 1000 }
 ];
 
 var CHALLENGE_SAVE_KEY = "marioGameChallengeBest";

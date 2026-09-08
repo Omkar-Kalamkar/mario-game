@@ -870,6 +870,97 @@ body {
     opacity: 0.9;
 }
 
+/* Level 4: Crushing Caverns - deep underground, cool blue rock */
+#game.theme-4 {
+    background: linear-gradient(to bottom, #0e162e 0%, #24335e 60%, #33406e 100%);
+}
+
+#game.theme-4 .hill {
+    background: #3d4a63;
+    opacity: 0.8;
+}
+
+#game.theme-4 .cloud {
+    background: #b7c3da;
+    opacity: 0.3;
+}
+
+/* Level 5: Volcano Run - scorching lava sky, warning red */
+#game.theme-5 {
+    background: linear-gradient(to bottom, #5a1200 0%, #c2410c 55%, #f97316 100%);
+}
+
+#game.theme-5 .hill {
+    background: #431407;
+    opacity: 0.9;
+}
+
+#game.theme-5 .cloud {
+    background: #2f0f04;
+    opacity: 0.5;
+}
+
+#game.theme-5::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.35;
+    background-image:
+        radial-gradient(3px 3px at 14% 22%, rgba(255, 200, 100, 0.8) 50%, transparent 51%),
+        radial-gradient(2px 2px at 38% 12%, rgba(255, 220, 150, 0.8) 50%, transparent 51%),
+        radial-gradient(3px 3px at 62% 30%, rgba(255, 180, 80, 0.7) 50%, transparent 51%),
+        radial-gradient(2px 2px at 84% 16%, rgba(255, 200, 100, 0.7) 50%, transparent 51%),
+        radial-gradient(3px 3px at 30% 48%, rgba(255, 160, 60, 0.5) 50%, transparent 51%),
+        radial-gradient(2px 2px at 70% 54%, rgba(255, 170, 70, 0.5) 50%, transparent 51%);
+    animation: emberFloat 2.6s ease-in-out infinite;
+}
+
+@keyframes emberFloat {
+    0%, 100% { transform: translateY(0); opacity: 0.35; }
+    50%      { transform: translateY(-8px); opacity: 0.65; }
+}
+
+/* Level 6: Final Fortress - grim midnight battlements */
+#game.theme-6 {
+    background: linear-gradient(to bottom, #1a0b2e 0%, #2d1b4e 60%, #3d2a66 100%);
+}
+
+#game.theme-6 .hill {
+    background: #241240;
+    opacity: 0.9;
+}
+
+#game.theme-6 .cloud {
+    background: #8b5fd0;
+    opacity: 0.4;
+}
+
+#game.theme-6::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.8;
+    background-image:
+        radial-gradient(2px 2px at 12% 18%, #fff 50%, transparent 51%),
+        radial-gradient(2px 2px at 32% 42%, #fff 50%, transparent 51%),
+        radial-gradient(3px 3px at 52% 15%, #fff 50%, transparent 51%),
+        radial-gradient(2px 2px at 68% 35%, #fff 50%, transparent 51%),
+        radial-gradient(2px 2px at 84% 22%, #fff 50%, transparent 51%),
+        radial-gradient(3px 3px at 22% 62%, #fff 50%, transparent 51%),
+        radial-gradient(2px 2px at 76% 60%, #fff 50%, transparent 51%),
+        radial-gradient(2px 2px at 91% 48%, #fff 50%, transparent 51%);
+}
+
 /* ===== DAY 6: LIVES, CHECKPOINTS, RESPAWN EFFECTS ===== */
 
 /* Lives readout in the HUD: number + CSS hearts */
@@ -1886,6 +1977,7 @@ body {
     align-items: center;
     gap: 14px;
     padding: 18px 22px;
+    overflow-y: auto;
     background:
         radial-gradient(circle at 50% 40%, rgba(40, 60, 120, 0.5), transparent 72%),
         rgba(8, 6, 22, 0.94);
@@ -2000,6 +2092,24 @@ body {
     background: rgba(229, 37, 33, 0.2);
     color: #ff6b6b;
     border: 1px solid rgba(229, 37, 33, 0.4);
+}
+
+.lc-difficulty.easyplus {
+    background: rgba(52, 211, 153, 0.2);
+    color: #5eead4;
+    border: 1px solid rgba(52, 211, 153, 0.4);
+}
+
+.lc-difficulty.mediumplus {
+    background: rgba(255, 170, 0, 0.2);
+    color: #fbbf24;
+    border: 1px solid rgba(255, 170, 0, 0.4);
+}
+
+.lc-difficulty.expert {
+    background: rgba(185, 28, 95, 0.2);
+    color: #ff7fab;
+    border: 1px solid rgba(185, 28, 95, 0.4);
 }
 
 .level-card.locked .lc-difficulty {
@@ -2205,8 +2315,9 @@ body {
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    gap: 10px;
-    padding: 14px 22px;
+    gap: 6px;
+    padding: 8px 22px;
+    overflow-y: auto;
     background:
         radial-gradient(circle at 50% 35%, rgba(34, 90, 40, 0.5), transparent 72%),
         rgba(6, 12, 26, 0.96);
@@ -2218,7 +2329,7 @@ body {
 }
 
 #worldMapScreen h2 {
-    font-size: 34px;
+    font-size: 28px;
     color: #fff;
     letter-spacing: 6px;
     text-shadow: 3px 3px 0 #000, 0 0 20px rgba(255, 210, 63, 0.5);
@@ -2242,9 +2353,15 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: space-around;
+    justify-content: flex-start;
+    gap: 0;
     width: 320px;
     flex-shrink: 0;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 2px 4px;
+    scrollbar-width: thin;
+    scrollbar-color: #4a6fa5 rgba(255, 255, 255, 0.06);
 }
 
 /* One level node with its connecting line below it */
@@ -2256,9 +2373,9 @@ body {
 
 /* The node itself */
 .wm-node {
-    width: 190px;
-    border-radius: 14px;
-    padding: 10px 12px;
+    width: 185px;
+    border-radius: 12px;
+    padding: 6px 10px;
     text-align: center;
     cursor: pointer;
     position: relative;
@@ -2303,11 +2420,11 @@ body {
 
 /* Level number + difficulty inside each node */
 .wm-node-title {
-    font-size: 15px;
+    font-size: 12px;
     font-weight: bold;
-    letter-spacing: 2px;
+    letter-spacing: 1px;
     color: #ffd23f;
-    margin-bottom: 3px;
+    margin-bottom: 1px;
 }
 
 .wm-node.locked .wm-node-title {
@@ -2316,12 +2433,12 @@ body {
 
 .wm-node-diff {
     display: inline-block;
-    font-size: 11px;
+    font-size: 9px;
     font-weight: bold;
     letter-spacing: 1px;
-    padding: 2px 12px;
-    border-radius: 9px;
-    margin-bottom: 4px;
+    padding: 1px 8px;
+    border-radius: 7px;
+    margin-bottom: 1px;
 }
 
 .wm-node-diff.easy {
@@ -2342,6 +2459,24 @@ body {
     border: 1px solid rgba(229, 37, 33, 0.4);
 }
 
+.wm-node-diff.easyplus {
+    background: rgba(52, 211, 153, 0.2);
+    color: #5eead4;
+    border: 1px solid rgba(52, 211, 153, 0.4);
+}
+
+.wm-node-diff.mediumplus {
+    background: rgba(255, 170, 0, 0.2);
+    color: #fbbf24;
+    border: 1px solid rgba(255, 170, 0, 0.4);
+}
+
+.wm-node-diff.expert {
+    background: rgba(185, 28, 95, 0.2);
+    color: #ff7fab;
+    border: 1px solid rgba(185, 28, 95, 0.4);
+}
+
 .wm-node.locked .wm-node-diff {
     background: rgba(255, 255, 255, 0.05);
     color: #555;
@@ -2350,11 +2485,11 @@ body {
 
 /* Status line: LOCKED / AVAILABLE / COMPLETED */
 .wm-node-status {
-    font-size: 11px;
+    font-size: 9px;
     font-weight: bold;
     letter-spacing: 1px;
-    padding: 3px 10px;
-    border-radius: 8px;
+    padding: 1px 8px;
+    border-radius: 7px;
     display: inline-block;
 }
 
@@ -2383,10 +2518,10 @@ body {
 /* ===== Connecting line between nodes ===== */
 .wm-connector {
     width: 4px;
-    height: 26px;
+    height: 6px;
     background: linear-gradient(to bottom, #4a6fa5, #2a3f66);
     border-radius: 2px;
-    margin: 4px 0;
+    margin: 1px 0;
 }
 
 /* The connector after the last node is hidden */
@@ -2411,6 +2546,16 @@ body {
     border: 1px solid rgba(255, 255, 255, 0.12);
     color: #c9d3ea;
     text-align: left;
+}
+
+.worldmap-progress {
+    flex-shrink: 0;
+}
+
+.worldmap-details {
+    flex: 1;
+    min-height: 120px;
+    overflow-y: auto;
 }
 
 .worldmap-progress h3,
@@ -2583,12 +2728,12 @@ body {
 
 /* Small mission progress line on each World Map node */
 .wm-node-missions {
-    margin-top: 6px;
-    font-size: 10px;
+    margin-top: 2px;
+    font-size: 8px;
     letter-spacing: 1px;
     color: #9aa7c7;
     border-top: 1px solid rgba(255, 255, 255, 0.08);
-    padding-top: 4px;
+    padding-top: 2px;
 }
 
 .wm-node.locked .wm-node-missions {
