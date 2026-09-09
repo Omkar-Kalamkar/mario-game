@@ -520,6 +520,23 @@ function updatePowerHud() {
     powerTimerBar.style.width = Math.ceil((remaining / total) * 100) + "%";
 }
 
+/* Day 20: reusable wrappers around the power-up HUD so callers get a
+   single stable entry point. Both delegate to the existing
+   updatePowerHud()/updateDoubleJumpHud(), so no duplicate HUD is ever
+   created and nothing is double-updated. They are intentionally thin:
+   the real HUD state stays owned by the single updatePowerHud/system. */
+function showPowerUpStatus() {
+    updatePowerHud();
+    updateDoubleJumpHud();
+    updateShieldHud();
+}
+
+function clearPowerUpStatus() {
+    updatePowerHud();
+    updateDoubleJumpHud();
+    updateShieldHud();
+}
+
 /* ===== Day 12: Shield system ===== */
 
 /* Refresh the Shield HUD cell */
@@ -581,9 +598,11 @@ function consumeShield(fromX, knockDir) {
     }
     sfxShieldBlock();
     sfxShieldBreak();
+    triggerScreenShake(180, 3);   /* Day 20: solid block impact */
     spawnFloatingText("SHIELD!", playerX + PLAYER_W / 2, playerY + PLAYER_H + 8);
     /* Day 13: a successfully-blocked hit unlocks the requirement */
     unlockAchievement("shielded");
+    spawnPlayerHitFx();   /* Day 20: visual hit feedback on the player */
 }
 
 /* Small expanding ring where the shield broke */
@@ -622,6 +641,44 @@ function spawnDoubleJumpFx(cx, bottomY) {
         if (fx.parentNode) fx.parentNode.removeChild(fx);
     });
     entities.appendChild(fx);
+}
+
+/* Day 20: brief hit flash on the player after a shield block or
+   damage. The class is auto-removed after the short CSS animation.
+   A monotonic id guards against two quick hits racing the removal
+   timer, and the bump forces the animation to restart cleanly. */
+var playerHitFlashSeq = 0;
+function spawnPlayerHitFx() {
+    var mySeq = ++playerHitFlashSeq;
+    player.classList.remove("hit-flash");
+    void player.offsetWidth;   /* restart the animation even if already flashing */
+    player.classList.add("hit-flash");
+    setTimeout(function() {
+        if (playerHitFlashSeq === mySeq) {
+            player.classList.remove("hit-flash");
+        }
+    }, 300);
+}
+
+/* Day 20: small golden sparkle burst when a coin is collected.
+   Four tiny expanding particles that self-remove via animationend. */
+function spawnCoinCollectFx(cx, bottomY) {
+    for (var s = 0; s < 4; s++) {
+        var spark = document.createElement("div");
+        spark.className = "coin-spark";
+        var ang = (Math.PI * 2 * s) / 4 + Math.random() * 0.5;
+        var dist = 10 + Math.random() * 10;
+        spark.style.left = cx + "px";
+        spark.style.bottom = bottomY + "px";
+        spark.style.setProperty("--sx", Math.round(Math.cos(ang) * dist) + "px");
+        spark.style.setProperty("--sy", Math.round(Math.sin(ang) * dist) + "px");
+        spark.addEventListener("animationend", (function(el) {
+            return function() {
+                if (el.parentNode) el.parentNode.removeChild(el);
+            };
+        })(spark));
+        entities.appendChild(spark);
+    }
 }
 
 /* ===== LIVES DISPLAY ===== */
@@ -695,6 +752,63 @@ var LEVEL_INFO = [
 var rafId = null;
 var levelStartTimer = null;
 var lastLoopTime = 0;   /* Day 16: last frame timestamp for mission timer */
+
+/* ============================================================
+   DAY 20: SCREEN SHAKE SYSTEM
+
+   A lightweight, single-source shake applied to the whole game
+   area via transform on #game. It decays every frame and cancels
+   itself, so it never leaves a lingering offset and never spawns
+   a second animation loop (it reuses the existing game loop).
+   ============================================================ */
+var shakeUntil = 0;          /* timestamp when the current shake ends */
+var shakeIntensity = 0;      /* current shake amplitude in pixels */
+var shakeDurationTotal = 0;  /* the original duration of the active shake */
+var shakeOffsetX = 0;        /* last applied horizontal offset */
+var shakeOffsetY = 0;        /* last applied vertical offset */
+
+/* Start a short, subtle screen shake (duration in ms, intensity in
+   px). A new, stronger/active shake overrides a fading one; calling
+   it repeatedly never stacks extra loops. */
+function triggerScreenShake(duration, intensity) {
+    var now = performance.now();
+    shakeDurationTotal = duration;
+    shakeIntensity = Math.max(shakeIntensity, intensity);
+    shakeUntil = now + duration;
+}
+
+/* Called once per frame while playing: apply the decaying shake to
+   #game and gate it off automatically when the shake runs out. */
+function updateScreenShake() {
+    var now = performance.now();
+    if (now >= shakeUntil || shakeIntensity <= 0) {
+        if (shakeOffsetX !== 0 || shakeOffsetY !== 0) {
+            shakeOffsetX = 0;
+            shakeOffsetY = 0;
+            game.style.transform = "";
+        }
+        return;
+    }
+    /* The shake amplitude falls off linearly over its lifetime */
+    var remaining = shakeUntil - now;
+    var decay = remaining / Math.max(1, shakeDurationTotal);
+
+    shakeOffsetX = (Math.random() - 0.5) * 2 * shakeIntensity * decay;
+    shakeOffsetY = (Math.random() - 0.5) * 2 * shakeIntensity * decay;
+    game.style.transform = "translate(" + Math.round(shakeOffsetX) + "px, " +
+                           Math.round(shakeOffsetY) + "px)";
+}
+
+/* Cancel any active shake and reset the game area transform (used on
+   level changes, restarts and when the game state leaves "playing"). */
+function clearScreenShake() {
+    shakeUntil = 0;
+    shakeIntensity = 0;
+    shakeDurationTotal = 0;
+    shakeOffsetX = 0;
+    shakeOffsetY = 0;
+    game.style.transform = "";
+}
 
 /* Lives / checkpoint state */
 var lives = START_LIVES;      /* remaining lives in this run */
@@ -1323,6 +1437,7 @@ function defeatEnemy(e) {
     isOnGround = false;
     onMovingPlatform = null;
     sfxEnemyStomp();
+    triggerScreenShake(120, 2);   /* Day 20: subtle thud on stomp */
 }
 
 /* ============================================================
@@ -1482,6 +1597,7 @@ function hitBoss(b) {
 
     spawnBossHitFx(b.x + BOSS_W / 2, b.y + BOSS_H - 6);
     sfxBossHit();
+    triggerScreenShake(200, 4);   /* Day 20: hard hit on boss */
 
     if (b.health <= 0) {
         defeatBoss(b);
@@ -1505,6 +1621,7 @@ function defeatBoss(b) {
     showBanner("BOSS DEFEATED!");
     spawnBossHitFx(b.x + BOSS_W / 2, b.y + BOSS_H);
     sfxBossDefeated();
+    triggerScreenShake(350, 6);   /* Day 20: big impact on victory */
     /* Day 13: a boss kill feeds the statistics + achievements.
        The Level 6 (final fortress) boss also unlocks FINAL FORTRESS */
     addStat("bosses", 1);
@@ -1611,6 +1728,7 @@ function doJump() {
         velocityY = currentJumpPower() * DOUBLE_JUMP_POWER_RATIO;
         doubleJumpUsed = true;
         spawnDoubleJumpFx(playerX + PLAYER_W / 2, playerY);
+        spawnFloatingText("DOUBLE JUMP!", playerX + PLAYER_W / 2 - 30, playerY + PLAYER_H + 10);
         sfxJump();
         /* Day 13: a successful second jump unlocks the requirement */
         unlockAchievement("doubleJumper");
@@ -1696,6 +1814,9 @@ function loadLevel(index) {
         clearPausableTimer(respawnTimer);
         respawnTimer = null;
     }
+
+    /* Day 20: clean any lingering screen shake from the previous level */
+    clearScreenShake();
 
     /* Day 7: tear down the previous boss and hide its health bar.
        Levels without a "boss" entry simply stay bar-less. */
@@ -1814,6 +1935,12 @@ function completeLevel() {
 
     gameWon = true;
 
+    /* Day 20: remember the best score for this level before this play
+       updates it, so the completed panel can show the improvement on
+       top of a "best" figure that already reflects the new score. */
+    var priorBestScore = levelBestScore[currentLevelIndex] || 0;
+    var coinsThisLevel = coinCount;
+
     /* Day 14: save per-level statistics */
     saveLevelStats(currentLevelIndex, score, coinCount);
 
@@ -1830,6 +1957,7 @@ function completeLevel() {
     if (currentLevelIndex === LEVELS.length - 1) {
         gameState = "win";
         sfxVictory();
+        triggerScreenShake(300, 5);   /* Day 20: victory shake */
         /* Day 13: completing the whole game unlocks SPEEDRUNNER and
            increments the games-completed stat. The banner is already
            in the win state, so its popup is suppressed here. */
@@ -1851,10 +1979,24 @@ function completeLevel() {
     } else {
         gameState = "levelcomplete";
         sfxLevelComplete();
+        triggerScreenShake(250, 3);   /* Day 20: level-clear celebration shake */
         var nextIdx = currentLevelIndex + 1;
+        var curBest = levelBestScore[currentLevelIndex] || 0;
+        var bestLine = curBest > 0
+            ? "BEST SCORE: " + curBest
+            : "LEVEL " + (currentLevelIndex + 1) + " UNLOCKED";
+        var nextInfo = nextIdx < LEVELS.length
+            ? "Next: Level " + (nextIdx + 1) + " - " +
+              LEVEL_INFO[nextIdx].difficulty
+            : "All levels cleared!";
+        var timeLine = "TIME: " + formatClock(Math.floor(attemptTime / 1000));
         showMessage(
             "LEVEL " + (currentLevelIndex + 1) + " COMPLETE!",
-            "Score so far: " + score,
+            "SCORE: " + score +
+                "  |  COINS: " + coinsThisLevel +
+                "  |  " + timeLine +
+                "  |  " + bestLine +
+                "  |  " + nextInfo,
             null, null, null, null,
             [
                 { label: "NEXT LEVEL", action: function() { loadLevel(nextIdx); }, cls: "green" },
@@ -1910,6 +2052,7 @@ function killPlayer() {
     player.classList.remove("airborne", "invulnerable");
     player.classList.add("dying");
     sfxDeath();
+    triggerScreenShake(200, 4);   /* Day 20: damage shake */
 
     if (lives <= 0) {
         gameOver = true;
@@ -1925,7 +2068,8 @@ function killPlayer() {
         }
         showMessage(
             "GAME OVER",
-            "SCORE: " + score + "  |  HIGH SCORE: " + savedHighScore +
+            "SCORE: " + score + "  |  LEVEL REACHED: " + (currentLevelIndex + 1) +
+                "  |  HIGH SCORE: " + savedHighScore +
                 "  |  BEST LEVEL: " + savedBestLevel +
                 "  |  Coins collected: " + totalCoinsRun,
             "Restart Game",
@@ -2019,6 +2163,7 @@ function restartGame() {
     pausedStartMs = 0;
     game.classList.remove("paused");
     hidePauseMenu();
+    clearScreenShake();   /* Day 20: reset any lingering shake */
 
     if (respawnTimer !== null) {
         clearPausableTimer(respawnTimer);
@@ -5212,7 +5357,14 @@ function startLoop() {
 
 function gameLoop() {
     /* No new frames run while paused or outside active gameplay */
-    if (paused || gameState !== "playing") { rafId = null; return; }
+    if (paused || gameState !== "playing") {
+        rafId = null;
+        /* Day 20: reset the shake offset so no lingering transform is
+           left on #game when the loop exits (loadLevel rebuilds the
+           DOM, so this prevents a stale translate during transitions). */
+        clearScreenShake();
+        return;
+    }
 
     /* Day 16: accumulate real playing time for TIME missions. The loop
        is frozen while paused, so this naturally excludes paused time.
@@ -5351,6 +5503,8 @@ function gameLoop() {
             totalCoinsRun++;
             coinCountEl.textContent = coinCount;
             flashCoins();
+            /* Day 20: small golden sparkle at the collection point */
+            spawnCoinCollectFx(c.x + COIN_SIZE / 2, c.y + COIN_SIZE / 2);
             /* Day 11: coin feeds the combo (scored once thanks to
                the collected flag above) */
             awardComboScore(50, c.x + COIN_SIZE / 2, c.y + COIN_SIZE + 4);
@@ -5407,6 +5561,10 @@ function gameLoop() {
     /* Day 11: count down the combo window every frame; if it runs
        out the streak resets to x1 */
     updateComboTimer();
+
+    /* Day 20: update any active screen shake (applies a transient
+       transform to #game each frame, decays to zero on its own). */
+    updateScreenShake();
 
     /* Post-respawn invulnerability: blink while it lasts */
     var invulnerable = performance.now() < invulnUntil;
