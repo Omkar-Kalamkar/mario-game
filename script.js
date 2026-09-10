@@ -961,6 +961,13 @@ var LEVELS = [
         checkpoints: [
             { x: 362, y: 55 },   /* after the first pit */
             { x: 662, y: 55 }    /* after the second pit, before the chaser */
+        ],
+        hazards: [
+            /* Day 21: one falling rock on the high platform above the goal
+               island - the warning flash gives a fair chance to move away */
+            { type: "falling", variant: "rock", x: 645, groundY: 222,
+              startY: 400, w: 22, h: 22, speed: 2.5,
+              warningTime: 1400, cooldown: 6200, damage: 1 }
         ]
     },
 
@@ -1022,6 +1029,16 @@ var LEVELS = [
         checkpoints: [
             { x: 350, y: 55 },    /* after the long first pit */
             { x: 700, y: 148 }    /* on the high perch near the goal */
+        ],
+        hazards: [
+            /* Day 21: two falling rocks over the stepping-stone section
+               and an erupting fire vent near the goal */
+            { type: "falling", variant: "rock", x: 452, groundY: 55, startY: 430,
+              w: 26, h: 26, speed: 3, warningTime: 1100, cooldown: 4800, damage: 1 },
+            { type: "falling", variant: "rock", x: 730, groundY: 55, startY: 410,
+              w: 26, h: 26, speed: 3.5, warningTime: 1000, cooldown: 4600, damage: 1 },
+            { type: "zone", x: 830, groundY: 55, w: 36, h: 26,
+              warningTime: 1000, activeTime: 1400, cooldown: 4200, damage: 1 }
         ]
     },
 
@@ -1086,6 +1103,19 @@ var LEVELS = [
         checkpoints: [
             { x: 240, y: 55 },    /* after the first pit */
             { x: 690, y: 55 }     /* at the goal island */
+        ],
+        hazards: [
+            /* Day 21: rocks + a fire vent over the first islands, a burning
+               block patrolling the high route, and spikes at the goal climb */
+            { type: "falling", variant: "rock", x: 300, groundY: 55, startY: 460,
+              w: 24, h: 24, speed: 4, warningTime: 900, cooldown: 4200, damage: 1 },
+            { type: "zone", x: 345, groundY: 55, w: 34, h: 26,
+              warningTime: 850, activeTime: 1400, cooldown: 4000, damage: 1 },
+            { type: "falling", variant: "rock", x: 525, groundY: 55, startY: 470,
+              w: 24, h: 24, speed: 4, warningTime: 950, cooldown: 4400, damage: 1 },
+            { type: "block", x: 700, groundY: 216, w: 28, h: 28, speed: 1.8,
+              minX: 700, maxX: 794, dir: 1, damage: 1 },
+            { type: "spikes", x: 710, groundY: 55, w: 44, h: 16, damage: 1 }
         ]
     },
 
@@ -1151,6 +1181,20 @@ var LEVELS = [
         checkpoints: [
             { x: 470, y: 55 },    /* after the first two pits */
             { x: 700, y: 55 }     /* at the goal island */
+        ],
+        hazards: [
+            /* Day 21: volcanic eruption drops on the start island, a flame
+               block circling island 3, and vents spitting fire at the goal */
+            { type: "falling", variant: "fireball", x: 100, groundY: 55, startY: 470,
+              w: 26, h: 26, speed: 5, warningTime: 750, cooldown: 4200, damage: 1 },
+            { type: "falling", variant: "fireball", x: 290, groundY: 55, startY: 480,
+              w: 26, h: 26, speed: 5.5, warningTime: 700, cooldown: 3600, damage: 1 },
+            { type: "block", x: 520, groundY: 55, w: 26, h: 26, speed: 2.8,
+              minX: 515, maxX: 572, dir: 1, damage: 1 },
+            { type: "zone", x: 745, groundY: 55, w: 48, h: 28,
+              warningTime: 800, activeTime: 1600, cooldown: 4200, damage: 1 },
+            { type: "falling", variant: "fireball", x: 830, groundY: 55, startY: 470,
+              w: 24, h: 24, speed: 6, warningTime: 650, cooldown: 3400, damage: 1 }
         ]
     },
 
@@ -1221,6 +1265,22 @@ var LEVELS = [
             { x: 500, y: 55 },    /* after the second pit */
             { x: 700, y: 146 }    /* on the arena perch, above the boss */
         ],
+        hazards: [
+            /* Day 21: spikes at the start, lava rain over the towers and
+               into the pit. Everything stays at x < 600 so the boss arena
+               (which starts at arenaEnterX = 600) is hazard-free. */
+            { type: "spikes", x: 88, groundY: 55, w: 30, h: 16, damage: 1 },
+            { type: "falling", variant: "fireball", x: 320, groundY: 55,
+              startY: 485, w: 26, h: 26, speed: 6.5,
+              warningTime: 700, cooldown: 3800, damage: 1 },
+            /* Fiery drop that lands below ground level (into the pit) */
+            { type: "falling", variant: "fireball", x: 465, groundY: -40,
+              startY: 500, w: 24, h: 24, speed: 4.5,
+              warningTime: 800, cooldown: 5400, damage: 1 },
+            { type: "falling", variant: "fireball", x: 530, groundY: 55,
+              startY: 475, w: 26, h: 26, speed: 6.5,
+              warningTime: 650, cooldown: 4000, damage: 1 }
+        ],
         boss: {
             x: 762, y: 55,
             minX: 706, maxX: 830,      /* maxX = right edge, before the gate */
@@ -1244,6 +1304,10 @@ var coinsData = [];
 var powerUpsData = [];
 var enemiesData = [];
 var onMovingPlatform = null;
+
+/* Day 21: dynamic environmental hazards (falling rocks/fireballs,
+   fire zones, spikes and burning blocks) rebuilt for every level */
+var hazardsData = [];
 
 /* Day 7: boss state (null in levels without a boss) and a flag so
    the "DEFEAT THE BOSS!" banner + health bar only appear once */
@@ -1270,6 +1334,7 @@ function buildLevel(def) {
     powerUpsData = [];
     enemiesData = [];
     checkpointsData = [];
+    hazardsData = [];
 
     /* Static platforms and ground segments */
     for (var i = 0; i < def.platforms.length; i++) {
@@ -1346,6 +1411,9 @@ function buildLevel(def) {
     if (def.boss) {
         initBoss(def.boss);
     }
+
+    /* Day 21: build every environmental hazard for this level */
+    buildHazards(def.hazards || []);
 }
 
 /* Raise a checkpoint flag: it becomes the new respawn point */
@@ -1656,6 +1724,364 @@ function spawnBossHitFx(cx, bottomY, text) {
     if (text) spawnFloatingText(text, cx - 20, bottomY + 12);
 }
 
+/* ============================================================
+   DAY 21: DYNAMIC ENVIRONMENTAL HAZARDS
+
+   Every level can define a "hazards" array. Four kinds exist:
+
+     falling  a rock or fireball that hangs invisibly, flashes a
+              warning, then drops: waiting -> warning -> falling
+              -> impact -> waiting
+     zone     a floor vent that flashes, then erupts with fire:
+              safe -> warning -> active
+     spikes   static and always lethal on touch
+     block    a burning block patrolling back and forth
+
+   All timing uses absolute timestamps, so the pause system keeps
+   them honest (shiftTimestamps pushes phaseEnd forward) and death
+   resets them through resetHazards(). Damage runs through the
+   normal lives system: a shield absorbs one hit, everything else
+   costs one life (killPlayer).
+   ============================================================ */
+
+var HAZARD_IMPACT_MS = 260;      /* how long a landed rock stays dangerous */
+var HAZARD_DODGE_SCORE = 50;     /* Day 11: combo-aware bonus for dodging */
+
+/* Build the DOM + runtime state for every hazard in a level */
+function buildHazards(defs) {
+    for (var i = 0; i < defs.length; i++) {
+        var d = defs[i];
+        var isFalling = d.type === "falling";
+        var subCls = isFalling ? d.variant
+                    : d.type === "zone" ? "zone"
+                    : d.type === "block" ? "block" : "spikes";
+        var phaseCls = isFalling ? " waiting"
+                    : d.type === "zone" ? " zone-safe"
+                    : "";
+        var el = makeEntity("hazard " + subCls + phaseCls,
+                            d.x, d.groundY, d.w, d.h);
+
+        /* Small pulsing warning marker that hangs over the hazard */
+        var alertEl = document.createElement("div");
+        alertEl.className = "hazard-alert";
+        alertEl.textContent = "\u26A0";
+        el.appendChild(alertEl);
+
+        var h = {
+            type: d.type,
+            variant: d.variant || "",
+            x: d.x,
+            groundY: d.groundY,
+            startY: d.startY || 0,
+            w: d.w, h: d.h,
+            speed: d.speed || 0,
+            initX: d.x,
+            minX: d.minX !== undefined ? d.minX : d.x,
+            maxX: d.maxX !== undefined ? d.maxX : d.x + d.w,
+            dir: d.dir || 1,
+            warningTime: d.warningTime || 0,
+            activeTime: d.activeTime || 0,
+            cooldown: d.cooldown || 0,
+            damage: d.damage || 1,
+            phase: isFalling ? "waiting" : (d.type === "zone" ? "safe" : "armed"),
+            phaseEnd: 0,
+            yy: null,
+            cycleCounted: false,
+            hitThisCycle: false,
+            levelEncountered: false,
+            baseClass: "hazard " + subCls + phaseCls,
+            el: el,
+            alertEl: alertEl
+        };
+
+        /* Rocks/vent start on a delay (plus the level banner) so the
+           player gets a moment to look around. Spikes/blocks are on
+           from the very first frame. */
+        if (isFalling || d.type === "zone") {
+            h.phaseEnd = performance.now() + h.cooldown + BANNER_WAIT_MS;
+        }
+        if (isFalling) {
+            /* The rock rests up high and the warning marker stays at
+               the landing spot, where the danger actually is */
+            el.style.bottom = h.startY + "px";
+            alertEl.style.top = (h.startY - h.groundY - 18) + "px";
+        }
+
+        hazardsData.push(h);
+    }
+}
+
+/* Bring every hazard back to its starting state after a respawn */
+function resetHazards() {
+    for (var i = 0; i < hazardsData.length; i++) {
+        var h = hazardsData[i];
+        h.phase = h.type === "falling" ? "waiting"
+                : h.type === "zone" ? "safe"
+                : "armed";
+        h.phaseEnd = (h.type === "falling" || h.type === "zone")
+            ? performance.now() + h.cooldown
+            : 0;
+        h.cycleCounted = false;
+        h.hitThisCycle = false;
+        h.el.className = h.baseClass;
+        h.alertEl.classList.remove("on");
+        if (h.type === "falling") {
+            h.yy = null;
+            h.el.style.bottom = h.startY + "px";
+        }
+        if (h.type === "block") {
+            h.x = h.initX;
+            h.el.style.left = h.x + "px";
+        }
+    }
+}
+
+/* Is the player somewhere the hazard can reach? Used for encounter
+   counting and proximity warnings. */
+function hazardPlayerNear(h) {
+    var nearX = playerX + PLAYER_W > h.x - 16 && playerX < h.x + h.w + 16;
+    var nearY = playerY + PLAYER_H > h.groundY - 30 &&
+                playerY < h.groundY + 220;
+    return nearX && nearY;
+}
+
+/* Count one "encounter" for the statistics. Falling/zone hazards count
+   once per dangerous cycle, spikes/blocks once per level - and only
+   when the player was actually around to face them. */
+function countHazardEncounter(h) {
+    if (h.type === "falling" || h.type === "zone") {
+        if (h.cycleCounted) return;
+    } else {
+        if (h.levelEncountered) return;
+    }
+    if (!hazardPlayerNear(h)) return;
+    h.cycleCounted = true;
+    h.levelEncountered = true;
+    addStat("hazardsEncountered", 1);
+}
+
+/* Is this hazard deadly right now? (spikes/blocks are always armed) */
+function hazardIsDangerous(h) {
+    if (h.type === "falling") return h.phase === "falling" || h.phase === "impact";
+    if (h.type === "zone") return h.phase === "active";
+    return true;
+}
+
+/* One frame of a falling rock/fireball */
+function updateFallingHazard(h) {
+    var now = performance.now();
+
+    if (h.phase === "waiting") {
+        if (now >= h.phaseEnd) {
+            h.phase = "warning";
+            h.phaseEnd = now + h.warningTime;
+            h.el.classList.remove("waiting");
+            h.el.classList.add("warning");
+            h.alertEl.classList.add("on");
+            sfxHazardWarning();
+            if (hazardPlayerNear(h)) {
+                spawnFloatingText("\u26A0", h.x + h.w / 2, h.groundY + h.h + 18);
+            }
+        }
+    } else if (h.phase === "warning") {
+        if (now >= h.phaseEnd) {
+            h.phase = "falling";
+            h.phaseEnd = 0;
+            h.yy = h.startY;
+            h.el.classList.remove("warning");
+            h.el.classList.add("falling");
+            h.alertEl.classList.remove("on");
+            sfxHazardFall();
+            countHazardEncounter(h);
+        }
+    } else if (h.phase === "falling") {
+        h.yy -= h.speed;
+        if (h.yy <= h.groundY) {
+            h.yy = h.groundY;
+            h.phase = "impact";
+            h.phaseEnd = now + HAZARD_IMPACT_MS;
+            h.el.classList.remove("falling");
+            h.el.classList.add("impact");
+            sfxHazardImpact(h);
+            spawnHazardImpactFx(h);
+            /* "pit rain" onto a pit below the floor is quieter
+               visually than a solid-ground smash */
+            if (h.groundY >= 20) triggerScreenShake(200, 3);
+            if (!h.hitThisCycle && h.cycleCounted && hazardPlayerNear(h)) {
+                awardHazardDodge(h);
+            }
+        }
+    } else if (h.phase === "impact") {
+        if (now >= h.phaseEnd) {
+            h.phase = "waiting";
+            h.phaseEnd = now + h.cooldown;
+            h.el.classList.remove("impact");
+            h.el.classList.add("waiting");
+            h.el.style.bottom = h.startY + "px";
+            h.yy = null;
+            h.cycleCounted = false;
+            h.hitThisCycle = false;
+        }
+    }
+
+    if (h.phase === "falling") {
+        h.el.style.left = h.x + "px";
+        h.el.style.bottom = h.yy + "px";
+    }
+}
+
+/* One frame of a fire vent / lava zone */
+function updateZoneHazard(h) {
+    var now = performance.now();
+
+    if (h.phase === "safe") {
+        if (now >= h.phaseEnd) {
+            h.phase = "warning";
+            h.phaseEnd = now + h.warningTime;
+            h.el.classList.remove("zone-safe");
+            h.el.classList.add("zone-warning");
+            h.alertEl.classList.add("on");
+            sfxHazardWarning();
+            if (hazardPlayerNear(h)) {
+                spawnFloatingText("\u26A0", h.x + h.w / 2, h.groundY + h.h + 18);
+            }
+        }
+    } else if (h.phase === "warning") {
+        if (now >= h.phaseEnd) {
+            h.phase = "active";
+            h.phaseEnd = now + h.activeTime;
+            h.el.classList.remove("zone-warning");
+            h.el.classList.add("zone-active");
+            h.alertEl.classList.remove("on");
+            sfxHazardFire();
+            countHazardEncounter(h);
+        }
+    } else if (h.phase === "active") {
+        if (now >= h.phaseEnd) {
+            if (!h.hitThisCycle && h.cycleCounted && hazardPlayerNear(h)) {
+                awardHazardDodge(h);
+            }
+            h.phase = "safe";
+            h.phaseEnd = now + h.cooldown;
+            h.el.classList.remove("zone-active");
+            h.el.classList.add("zone-safe");
+            h.cycleCounted = false;
+            h.hitThisCycle = false;
+        }
+    }
+}
+
+/* One frame of a patrolling burning block */
+function updateMovingHazard(h) {
+    h.x += h.dir * h.speed;
+    if (h.x <= h.minX) { h.x = h.minX; h.dir = 1; }
+    if (h.x + h.w >= h.maxX) { h.x = h.maxX - h.w; h.dir = -1; }
+    h.el.style.left = h.x + "px";
+    countHazardEncounter(h);
+}
+
+/* Advance every hazard in the level by one frame */
+function updateHazards() {
+    for (var i = 0; i < hazardsData.length; i++) {
+        var h = hazardsData[i];
+        if (h.type === "falling") {
+            updateFallingHazard(h);
+        } else if (h.type === "zone") {
+            updateZoneHazard(h);
+        } else if (h.type === "block") {
+            updateMovingHazard(h);
+        } else {
+            countHazardEncounter(h);   /* spikes */
+        }
+    }
+}
+
+/* Dodge a danger cleanly: small combo-aware bonus, once per cycle */
+function awardHazardDodge(h) {
+    if (h.hitThisCycle || !h.cycleCounted) return;
+    h.hitThisCycle = true;
+    awardComboScore(HAZARD_DODGE_SCORE, h.x + h.w / 2, h.groundY + h.h + 8);
+    sfxHazardDodge();
+}
+
+/* Player touched a hazard: shield blocks it, otherwise one life */
+function checkHazardCollisions() {
+    if (isDying || gameOver || gameWon) return;
+    var invulnerable = performance.now() < invulnUntil;
+
+    for (var i = 0; i < hazardsData.length; i++) {
+        var h = hazardsData[i];
+        if (!hazardIsDangerous(h)) continue;
+
+        var hy = h.type === "falling" ? h.yy : h.groundY;
+        var horizontal = playerX + PLAYER_W > h.x && playerX < h.x + h.w;
+        var vertical = playerY + PLAYER_H > hy && playerY < hy + h.h;
+        if (!horizontal || !vertical) continue;
+
+        /* While protected (respawn blink) the player passes straight
+           through and it is not even counted as an encounter */
+        if (invulnerable) continue;
+
+        countHazardEncounter(h);
+
+        h.hitThisCycle = true;
+        addStat("hazardsHit", 1);
+
+        /* Push the player clear so they do not instantly take a
+           second hit, then apply damage through the normal systems */
+        var dir = (playerX + PLAYER_W / 2) < (h.x + h.w / 2) ? -1 : 1;
+        if (dir < 0) playerX = h.x - PLAYER_W;
+        else playerX = h.x + h.w;
+
+        if (shieldActive) {
+            consumeShield(h.x, dir);
+        } else {
+            spawnFloatingText("DAMAGE", playerX + PLAYER_W / 2, playerY + PLAYER_H + 8);
+            killPlayer();
+        }
+        return;
+    }
+}
+
+/* Small one-shot dust/ember burst where a rock/fireball lands.
+   Removes itself via animationend, like the other effect helpers. */
+function spawnHazardImpactFx(h) {
+    var fx = document.createElement("div");
+    fx.className = "hazard-impact" + (h.variant === "fireball" ? " fire" : "");
+    fx.style.left = (h.x - 12) + "px";
+    fx.style.bottom = (h.groundY - 18) + "px";
+    fx.style.width = (h.w + 24) + "px";
+    fx.addEventListener("animationend", function() {
+        if (fx.parentNode) fx.parentNode.removeChild(fx);
+    });
+    entities.appendChild(fx);
+}
+
+/* --- Hazard sound effects (all respect the sound toggle) --- */
+
+function sfxHazardWarning() {
+    playTone("sine", 880, 0.12, 0.16, 1320);
+}
+
+function sfxHazardFall() {
+    playTone("sine", 500, 0.35, 0.14, 140);
+}
+
+function sfxHazardImpact(h) {
+    playNoise(0.25, 0.3);
+    if (h.variant === "fireball") playTone("sawtooth", 220, 0.2, 0.2, 90);
+    else playTone("square", 120, 0.25, 0.22, 40);
+}
+
+function sfxHazardFire() {
+    playNoise(0.4, 0.2);
+    playTone("sawtooth", 180, 0.4, 0.14, 320);
+}
+
+function sfxHazardDodge() {
+    playTone("sine", 660, 0.09, 0.18, 990);
+}
+
 /* ===== INPUT ===== */
 /* These listeners are registered exactly once for the whole game.
    Changing levels never adds new ones. */
@@ -1954,6 +2380,15 @@ function completeLevel() {
        LEVEL_COMPLETE) now that the goal was reached. */
     finalizeLevelEndMissions();
 
+    /* Day 21: beating a hazard-heavy level (3-6) without losing a
+       life earns the HAZARD MASTER achievement */
+    if (currentLevelIndex >= 2 &&
+        LEVELS[currentLevelIndex].hazards &&
+        LEVELS[currentLevelIndex].hazards.length > 0 &&
+        attemptNoDeath) {
+        unlockAchievement("hazardMaster");
+    }
+
     if (currentLevelIndex === LEVELS.length - 1) {
         gameState = "win";
         sfxVictory();
@@ -2131,6 +2566,10 @@ function respawnPlayer() {
         bd.hitFlashUntil = 0;
         bd.nextAttackOk = 0;
     }
+
+    /* Day 21: environmental hazards restart their cycle so the player
+       is never hit instantly while still protected by the respawn blink */
+    resetHazards();
 
     /* Protected for a moment: blinking player, deadly contact off */
     invulnUntil = performance.now() + RESPAWN_INVULN_MS;
@@ -2428,6 +2867,12 @@ function shiftTimestamps(delta) {
         if (b.nextAttackOk !== 0) b.nextAttackOk += delta;
         if (b.staggerUntil !== 0) b.staggerUntil += delta;
         if (b.hitFlashUntil !== 0) b.hitFlashUntil += delta;
+    }
+
+    /* Day 21: hazard timers freeze while the game is paused too */
+    for (var i = 0; i < hazardsData.length; i++) {
+        var hz = hazardsData[i];
+        if (hz.phaseEnd > 0) hz.phaseEnd += delta;
     }
 }
 
@@ -3138,7 +3583,10 @@ function renderWorldMapProgress() {
         '<div class="wm-progress-row">Missions Completed: <b>' +
         getMissionCompletedCount() + ' / ' + getAllMissionsTotal() + '</b></div>' +
         '<div class="wm-progress-row">Best Score: <b>' +
-        savedHighScore + '</b></div>';
+        savedHighScore + '</b></div>' +
+        '<div class="wm-progress-row">Hazards Avoided: <b>' +
+        (ACHIEV_STATS.hazardsEncountered - ACHIEV_STATS.hazardsHit) + ' / ' +
+        (ACHIEV_STATS.hazardsEncountered || 0) + '</b></div>';
 }
 
 /* Show an empty (no node selected) details panel */
@@ -3365,7 +3813,8 @@ var ACHIEVEMENTS = [
     { id: "challengeMaster", title: "CHALLENGE MASTER", description: "Complete 5 Challenge Mode challenges." },
     { id: "dailyVisitor", title: "DAILY VISITOR", description: "Claim your first daily reward." },
     { id: "weeklyWarrior", title: "WEEKLY WARRIOR", description: "Complete one full 7-day reward cycle." },
-    { id: "streakMaster", title: "STREAK MASTER", description: "Reach a 7-day consecutive streak." }
+    { id: "streakMaster", title: "STREAK MASTER", description: "Reach a 7-day consecutive streak." },
+    { id: "hazardMaster", title: "HAZARD MASTER", description: "Complete a hazard-heavy level (Levels 3-6) without losing a life." }
 ];
 
 /* Map id -> achievement for fast lookup */
@@ -3393,7 +3842,10 @@ var ACHIEV_STATS = {
     dailyRewardsClaimed: 0,
     currentDailyStreak: 0,
     bestDailyStreak: 0,
-    rewardCyclesCompleted: 0
+    rewardCyclesCompleted: 0,
+    /* Day 21: environmental hazard statistics */
+    hazardsEncountered: 0,
+    hazardsHit: 0
 };
 
 /* Load the unlocked achievement ids from localStorage, validating
@@ -3429,7 +3881,9 @@ function loadAchievStats() {
         bestChallengeScore: 0, fastestChallengeTime: 0,
         /* Day 18: daily rewards statistics */
         dailyRewardsClaimed: 0, currentDailyStreak: 0,
-        bestDailyStreak: 0, rewardCyclesCompleted: 0
+        bestDailyStreak: 0, rewardCyclesCompleted: 0,
+        /* Day 21: environmental hazard statistics */
+        hazardsEncountered: 0, hazardsHit: 0
     };
     try {
         var raw = window.localStorage.getItem(ACHIEV_STATS_KEY);
@@ -3648,7 +4102,13 @@ function renderAchievPanel() {
         '<div class="stat-row">Best Daily Streak: <b>' +
             ACHIEV_STATS.bestDailyStreak + ' days</b></div>' +
         '<div class="stat-row">Reward Cycles Completed: <b>' +
-            ACHIEV_STATS.rewardCyclesCompleted + '</b></div>';
+            ACHIEV_STATS.rewardCyclesCompleted + '</b></div>' +
+        '<div class="stat-row">Hazards Encountered: <b>' +
+            ACHIEV_STATS.hazardsEncountered + '</b></div>' +
+        '<div class="stat-row">Hazards Hit You: <b>' +
+            ACHIEV_STATS.hazardsHit + '</b></div>' +
+        '<div class="stat-row">Hazards Avoided: <b>' +
+            (ACHIEV_STATS.hazardsEncountered - ACHIEV_STATS.hazardsHit) + '</b></div>';
 }
 
 /* One line per level with its mission progress */
@@ -3692,7 +4152,8 @@ function resetAchievements() {
         challengesAttempted: 0, challengesCompleted: 0,
         bestChallengeScore: 0, fastestChallengeTime: 0,
         dailyRewardsClaimed: 0, currentDailyStreak: 0,
-        bestDailyStreak: 0, rewardCyclesCompleted: 0
+        bestDailyStreak: 0, rewardCyclesCompleted: 0,
+        hazardsEncountered: 0, hazardsHit: 0
     };
     try {
         window.localStorage.removeItem(ACHIEV_SAVE_KEY);
@@ -5491,6 +5952,9 @@ function gameLoop() {
     /* Day 7: boss AI */
     updateBoss();
 
+    /* Day 21: hazard AI (falling rocks, vents, spikes, burning blocks) */
+    updateHazards();
+
     /* Coin collection */
     for (i = 0; i < coinsData.length; i++) {
         var c = coinsData[i];
@@ -5631,6 +6095,10 @@ function gameLoop() {
             }
         }
     }
+
+    /* Day 21: environmental hazard collisions - a shield absorbs one
+       hit, otherwise the player loses one life */
+    checkHazardCollisions();
 
     /* Day 17: counting-type challenges finish the moment their
        objective is reached (before any goal check) */

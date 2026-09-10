@@ -3899,3 +3899,260 @@ body {
     animation-play-state: running;
 }
 
+/* ============================================================
+   DAY 21: DYNAMIC ENVIRONMENTAL HAZARDS
+   ============================================================ */
+
+/* Every hazard is a positioned element inside #entities. Sizes and
+   positions are set inline by script.js from each level's data. */
+.hazard {
+    position: absolute;
+    pointer-events: none;
+    z-index: 9;
+    transform-origin: 50% 100%;
+}
+
+/* Falling rocks start invisible and snap in only for their warning */
+.hazard.waiting {
+    opacity: 0;
+}
+
+/* -------------------- Falling rocks -------------------- */
+
+.hazard.rock {
+    background:
+        radial-gradient(circle at 32% 28%, #b9b9b9, #8a8a8a 42%, #5b5b5b 72%, #333);
+    border-radius: 42% 48% 46% 50% / 46% 42% 52% 48%;
+    box-shadow:
+        inset -3px -4px 6px rgba(0, 0, 0, 0.45),
+        inset 3px 3px 4px rgba(255, 255, 255, 0.25),
+        0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+/* A cracked highlight across the rock */
+.hazard.rock::before {
+    content: "";
+    position: absolute;
+    top: 22%;
+    left: -4%;
+    width: 108%;
+    height: 24%;
+    background: linear-gradient(rgba(255,255,255,0.28), rgba(255,255,255,0.06));
+    border-radius: 50%;
+    transform: rotate(-8deg);
+}
+
+/* -------------------- Falling fireballs -------------------- */
+
+.hazard.fireball {
+    background:
+        radial-gradient(circle at 40% 35%, #fff6b0, #ffcf3f 30%, #ff7a18 65%, #d32f0b);
+    border-radius: 50%;
+    box-shadow:
+        0 0 14px rgba(255, 140, 30, 0.9),
+        0 0 26px rgba(255, 90, 0, 0.55),
+        inset -2px -3px 5px rgba(120, 20, 0, 0.35);
+    animation: hazardFireGlow 0.5s ease-in-out infinite;
+}
+
+/* Darting flame tips spilling out of the orb */
+.hazard.fireball::after {
+    content: "";
+    position: absolute;
+    top: -18%;
+    left: 30%;
+    width: 40%;
+    height: 30%;
+    background: radial-gradient(closest-side, rgba(255, 180, 60, 0.9), transparent);
+    animation: hazardFireDart 0.4s ease-in-out infinite alternate;
+}
+
+@keyframes hazardFireGlow {
+    0%, 100% { filter: brightness(1); }
+    50%      { filter: brightness(1.35); }
+}
+
+@keyframes hazardFireDart {
+    0%   { transform: translateY(2px) scaleY(0.8); }
+    100% { transform: translateY(-3px) scaleY(1.25); }
+}
+
+/* -------------------- Warning state -------------------- */
+
+/* Yellow danger flash that shakes before something falls or erupts */
+.hazard.warning {
+    animation: hazardWarnShake 0.16s linear infinite;
+    filter: drop-shadow(0 0 8px rgba(255, 210, 63, 0.95));
+}
+
+.hazard.zone.zone-warning {
+    animation: hazardWarnShake 0.16s linear infinite;
+    filter: drop-shadow(0 0 8px rgba(255, 150, 30, 0.9));
+}
+
+@keyframes hazardWarnShake {
+    0%, 100% { transform: translateX(0) rotate(0deg); }
+    25%      { transform: translateX(-2px) rotate(-2deg); }
+    75%      { transform: translateX(2px) rotate(2deg); }
+}
+
+/* Mid-air acceleration feels alive with a tiny running wobble */
+.hazard.falling {
+    animation: hazardFalling 0.12s steps(2) infinite;
+}
+
+@keyframes hazardFalling {
+    0%   { transform: translateY(0) scaleY(1); }
+    100% { transform: translateY(-2px) scaleY(1.04); }
+}
+
+/* Landed smash: squash + a white flash, then it rests in "impact" */
+.hazard.impact {
+    animation: hazardImpactPop 0.26s ease-out;
+    filter: drop-shadow(0 0 10px rgba(255, 240, 180, 0.9));
+}
+
+@keyframes hazardImpactPop {
+    0%   { transform: scale(1.25, 0.7); }
+    60%  { transform: scale(1.05, 0.95); }
+    100% { transform: scale(1, 1); }
+}
+
+/* -------------------- Spikes -------------------- */
+
+.hazard.spikes {
+    background: linear-gradient(to bottom, #d7dbe0, #9aa1ab 55%, #5c636e);
+    clip-path: polygon(
+        0% 100%, 0% 34%, 11% 8%, 22% 30%, 33% 0%, 44% 30%,
+        55% 0%, 66% 30%, 78% 8%, 89% 34%, 100% 0%, 100% 100%
+    );
+    box-shadow: inset 0 -4px 6px rgba(0, 0, 0, 0.35);
+}
+
+/* -------------------- Burning blocks -------------------- */
+
+.hazard.block {
+    background: linear-gradient(to bottom, #ffb347, #ff5e2b 55%, #b3130b);
+    clip-path: polygon(
+        0% 100%, 0% 25%, 12% 0%, 38% 12%, 50% 0%, 62% 12%,
+        88% 0%, 100% 25%, 100% 100%
+    );
+    box-shadow:
+        0 0 12px rgba(255, 120, 20, 0.8),
+        inset 0 -4px 6px rgba(90, 10, 0, 0.4);
+    animation: hazardBlockSpin 3s linear infinite;
+}
+
+@keyframes hazardBlockSpin {
+    0%   { transform: rotate(0deg); filter: brightness(1); }
+    50%  { transform: rotate(180deg); filter: brightness(1.25); }
+    100% { transform: rotate(360deg); filter: brightness(1); }
+}
+
+/* -------------------- Fire zones / vents -------------------- */
+
+.hazard.zone {
+    border-radius: 6px 6px 2px 2px;
+    background:
+        radial-gradient(circle at 50% 100%, #5a3a10, transparent 70%),
+        linear-gradient(to top, #4a2c0c, #7a4a12);
+    border-bottom: 3px solid #2a1805;
+}
+
+/* Resting: a few dim embers glow quietly */
+.hazard.zone.zone-safe::after {
+    content: "";
+    position: absolute;
+    left: 12%;
+    right: 12%;
+    bottom: 2px;
+    height: 55%;
+    background: radial-gradient(closest-side, rgba(255, 120, 30, 0.35), transparent);
+    animation: hazardEmber 1.2s ease-in-out infinite;
+}
+
+@keyframes hazardEmber {
+    0%, 100% { opacity: 0.25; transform: scaleY(0.7); }
+    50%      { opacity: 0.7;  transform: scaleY(1); }
+}
+
+/* Erupting: tall roaring flames filling the vent */
+.hazard.zone.zone-active {
+    animation: hazardWarnShake 0.12s linear infinite;
+}
+
+.hazard.zone.zone-active::after {
+    content: "";
+    position: absolute;
+    left: 4%;
+    right: 4%;
+    bottom: 0;
+    height: 100%;
+    background: linear-gradient(to top,
+        #ff8c1a 0%, #ffc93f 45%, #fff3a0 75%, rgba(255, 243, 160, 0) 100%);
+    border-radius: 40% 60% 30% 50% / 80% 70% 90% 100%;
+    box-shadow:
+        0 0 14px rgba(255, 150, 40, 0.9),
+        inset 0 6px 8px rgba(255, 255, 200, 0.55);
+    animation: hazardZoneBlaze 0.22s ease-in-out infinite alternate;
+    transform-origin: 50% 100%;
+}
+
+@keyframes hazardZoneBlaze {
+    0%   { transform: scaleY(0.85) scaleX(0.95); opacity: 0.9; }
+    100% { transform: scaleY(1.2)  scaleX(1.05); opacity: 1; }
+}
+
+/* -------------------- Warning marker -------------------- */
+
+.hazard-alert {
+    position: absolute;
+    top: -20px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 15px;
+    line-height: 1;
+    color: #ffd23f;
+    text-shadow:
+        0 0 6px rgba(255, 150, 0, 0.95),
+        0 0 14px rgba(255, 80, 0, 0.6);
+    opacity: 0;
+    pointer-events: none;
+}
+
+.hazard-alert.on {
+    opacity: 1;
+    animation: hazardAlertPulse 0.42s ease-in-out infinite;
+}
+
+@keyframes hazardAlertPulse {
+    0%, 100% { transform: translateX(-50%) scale(1); }
+    50%      { transform: translateX(-50%) scale(1.35); }
+}
+
+/* -------------------- Impact burst (one shot) -------------------- */
+
+.hazard-impact {
+    position: absolute;
+    height: 26px;
+    background: radial-gradient(circle, rgba(230, 230, 220, 0.8), rgba(180, 170, 140, 0.4) 55%, transparent);
+    border-radius: 50%;
+    animation: hazardImpactFx 0.5s ease-out forwards;
+    z-index: 8;
+}
+
+.hazard-impact.fire {
+    background: radial-gradient(circle, rgba(255, 210, 90, 0.95), rgba(255, 100, 20, 0.5) 55%, transparent);
+}
+
+@keyframes hazardImpactFx {
+    0%   { transform: scale(0.4); opacity: 1; }
+    100% { transform: scale(1.5); opacity: 0; }
+}
+
+/* Falling hazards render above everything else while airborne/landed */
+.hazard.falling.falling,
+.hazard.falling.impact {
+    z-index: 12;
+}
+
