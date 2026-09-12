@@ -62,8 +62,10 @@ var resetRecordsBtnEl = document.getElementById("resetRecordsBtn");
 /* Day 11: combo HUD + milestone elements */
 var comboValueEl = document.getElementById("comboValue");
 var comboTimeEl = document.getElementById("comboTime");
-var comboTimerBar = document.getElementById("comboTimerBar");
 var comboMilestoneEl = document.getElementById("comboMilestone");
+/* Day 22: multiplier readout + segmented combo meter */
+var comboMultEl = document.getElementById("comboMult");
+var comboMeterEl = document.getElementById("comboMeter");
 
 /* Day 12: shield HUD element */
 var shieldValueEl = document.getElementById("shieldValue");
@@ -392,11 +394,22 @@ var SHIELD_BONUS_SCORE = 150;          /* points for collecting a shield */
 var DOUBLE_JUMP_BONUS_SCORE = 150;     /* points for collecting double jump */
 var SHIELD_KNOCKBACK = 6;              /* horizontal knockback when shield absorbs hit */
 
-/* ===== COMBO / STREAK SYSTEM (Day 11) ===== */
+/* ===== COMBO / STREAK SYSTEM (Day 11, extended Day 22) ===== */
 
-var COMBO_MAX = 10;               /* hard cap, never goes above this */
-var COMBO_WINDOW_MS = 2500;       /* time to chain the next action */
-var COMBO_BONUS_FACTOR = 0.5;     /* bonus = base * (combo-1) * factor */
+/* Day 22: the chain can now reach x15 so the higher multipliers and
+   x15 milestone reward are actually reachable. COMBO_WINDOW_MS is the
+   base time to chain the next action (Level 1); harder levels widen
+   the window a little (see comboWindowForLevel) so hazards/spikes on
+   Levels 3+ do not unfairly rob the player of a chain. */
+var COMBO_MAX = 15;               /* hard cap, never goes above this */
+var COMBO_WINDOW_MS = 2800;       /* Level 1 base chain window */
+var COMBO_METER_SEGS = 10;        /* blocks in the HUD combo meter */
+
+/* Combo milestone score rewards (Level balancing: flat bonuses, not
+   multiplied, so they never snowball on their own). */
+var COMBO_REWARD_5 = 200;
+var COMBO_REWARD_10 = 500;
+var COMBO_REWARD_15 = 1000;
 
 /* Current combo (combo value) and when the chain window expires.
    combo always starts/resets to 1 and the window only ticks while
@@ -2295,10 +2308,9 @@ function loadLevel(index) {
     resetTemporaryPowerUps();
     updatePowerHud();
 
-    /* Day 11: the combo carries over between levels. Refresh its
-       window here so no time is silently lost during the transition. */
-    if (combo > 1) comboEndTime = performance.now() + COMBO_WINDOW_MS;
-    updateComboHud();
+    /* Day 22: a fresh level starts a fresh combo chain. The streak
+       no longer carries over between levels (combo break condition). */
+    resetCombo();
 
     /* Coins are per-level: reset the counter, show the new total */
     coinCount = 0;
@@ -2655,44 +2667,106 @@ function spawnFloatingText(text, cx, bottomY) {
 }
 
 /* ============================================================
-   DAY 11: COMBO / STREAK SYSTEM
+   DAY 11 + DAY 22: COMBO / STREAK SYSTEM
 
    Reward skilled play by chaining successful actions (coin,
-   enemy stomp, boss hit, power-up). Getting another successful
-   action inside COMBO_WINDOW_MS raises the combo (up to
-   COMBO_MAX). The combo multiplies the points awarded by each
-   action as a bonus, so the base scores stay untouched but the
-   total grows as the streak grows.
+   enemy stomp, boss hit, power-up, hazard dodge). Getting
+   another successful action inside the combo window raises the
+   combo (up to COMBO_MAX). The combo grants a multiplier that
+   scales the points awarded by each action:
+
+     combo 1-2  -> x1   combo 5-7   -> x3
+     combo 3-4  -> x2   combo 8-11  -> x4
+                        combo 12+   -> x5  (max, never unlimited)
+
+   So a 100 point action scores 200 at x2 and the floating text
+   reads "+200 x2". Multiplier progress and chain length both show
+   in the combo HUD, and crossing combo x5 / x10 / x15 also pays a
+   flat milestone bonus (never multiplied, so it cannot snowball).
+
+   The combo chain breaks (back to x1) when the timer runs out,
+   the player dies, the level changes or the game restarts. The
+   timer only ticks during real gameplay: it freezes on pause and
+   is pushed forward again on resume (see shiftTimestamps), so a
+   paused combo never expires.
+
+   Level balancing: every level keeps the same combo thresholds,
+   but the chain window grows slightly on harder levels (Level 1
+   is the most forgiving - combo opportunities are simple coins
+   and single enemies - while deeper levels add more enemy/coin
+   chains and hazards, so they get a little more window time to
+   keep the chain alive).
 
    Combo callbacks that everyone above calls:
      increaseCombo()   raise the combo + reset the timer
-     awardComboScore() add base + combo bonus, show floating text
+     awardComboScore() add base + multiplier score, show floating text
    ============================================================ */
 
-/* Bonus points for an action worth "base" points. Uses the
-   CURRENT combo (so it scales after increaseCombo() nudges it).
-   At combo 1 there is no bonus; each extra combo step adds
-   base * 0.5 points for an easy to understand, fair progression. */
-function comboBonusFor(base) {
-    return Math.round(base * (combo - 1) * COMBO_BONUS_FACTOR);
+/* Chain window length for the current level (Level 1 base, wider on
+   harder levels so hazards do not unfairly break a hot streak) */
+function comboWindowForLevel() {
+    return COMBO_WINDOW_MS + currentLevelIndex * 150;
 }
 
-/* Refresh the combo HUD (value, timer, emphasis) */
+/* The score multiplier for a given combo count. x5 is the cap. */
+function comboMultiplierFor(c) {
+    if (c >= 12) return 5;
+    if (c >= 8)  return 4;
+    if (c >= 5)  return 3;
+    if (c >= 3)  return 2;
+    return 1;
+}
+
+function comboMultiplier() {
+    return comboMultiplierFor(combo);
+}
+
+/* Bonus points for an action worth "base" points (the multiplier
+   fraction above the x1 baseline). At x1 there is no bonus; at x3 a
+   100 point action gives a 200 point bonus for a 300 point total. */
+function comboBonusFor(base) {
+    return base * (comboMultiplier() - 1);
+}
+
+/* Rebuild the HUD meter's segments (called once at startup) */
+function buildComboMeter() {
+    comboMeterEl.innerHTML = "";
+    for (var i = 0; i < COMBO_METER_SEGS; i++) {
+        var seg = document.createElement("span");
+        seg.className = "combo-meter-seg";
+        comboMeterEl.appendChild(seg);
+    }
+}
+
+/* Fill the meter's blocks according to the remaining combo time
+   (ratio 0..1). Drains toward zero as the combo is about to end. */
+function updateComboMeter(ratio) {
+    var on = Math.ceil(Math.max(0, Math.min(1, ratio)) * COMBO_METER_SEGS);
+    for (var i = 0; i < COMBO_METER_SEGS; i++) {
+        comboMeterEl.children[i].classList.toggle("on", i < on);
+    }
+}
+
+/* Refresh the combo HUD (value, multiplier, emphasis). The timer
+   readout + meter are refreshed each frame by updateComboTimer()
+   and cleared by resetCombo(). */
 function updateComboHud() {
     comboValueEl.textContent = "x" + combo;
     comboValueEl.classList.toggle("high", combo >= 5);
+    comboMultEl.textContent = "MULTIPLIER x" + comboMultiplier();
+    comboMultEl.classList.toggle("high", comboMultiplier() >= 3);
     bumpFlash(comboValueEl, "pop");
-    /* The timer readout/bar are refreshed each frame by
-       updateComboTimer() and cleared by resetCombo(). */
+    bumpFlash(comboMeterEl, "pulse");
 }
 
 /* Raise the combo by one (up to the cap) and restart its timer.
    Also fires milestone feedback when a special combo is reached. */
 function increaseCombo() {
+    var oldMult = comboMultiplier();
     if (combo < COMBO_MAX) combo++;
-    comboEndTime = performance.now() + COMBO_WINDOW_MS;
+    comboEndTime = performance.now() + comboWindowForLevel();
     updateComboHud();
-    checkComboMilestone();
+    checkComboMilestone(oldMult);
     if (combo > 1 && soundEnabled) {
         playTone("triangle", 700 + combo * 60, 0.06, 0.12);
     }
@@ -2704,15 +2778,25 @@ function increaseCombo() {
     progressMissionByType("COMBO");
 }
 
-/* Bring the combo back to x1 and stop its timer */
-function resetCombo() {
+/* Bring the combo back to x1 and stop its timer. Pass showLost to
+   flash a brief "COMBO LOST" notification (timer expiry only). */
+function resetCombo(showLost) {
     combo = 1;
     comboEndTime = 0;
     comboValueEl.classList.remove("high");
-    comboTimeEl.textContent = "TIME: --";
-    comboTimerBar.style.width = "0%";
     comboValueEl.textContent = "x1";
+    comboMultEl.classList.remove("high");
+    comboMultEl.textContent = "MULTIPLIER x1";
+    comboTimeEl.textContent = "TIME: --";
+    updateComboMeter(0);
+    comboMeterEl.classList.remove("pulse");
     hideComboMilestone();
+    if (showLost) {
+        comboMilestoneEl.textContent = "COMBO LOST";
+        comboMilestoneEl.classList.add("lost");
+        bumpFlash(comboMilestoneEl, "show");
+        if (soundEnabled) playTone("sawtooth", 240, 0.28, 0.16, 110);
+    }
 }
 
 /* Called every frame while playing: count the combo window down
@@ -2722,24 +2806,36 @@ function updateComboTimer() {
         return;
     }
     var remaining = comboEndTime - performance.now();
+    var windowMs = comboWindowForLevel();
     if (remaining <= 0) {
-        resetCombo();
+        resetCombo(true);   /* Day 22: brief COMBO LOST feedback */
         return;
     }
     comboTimeEl.textContent = "TIME: " + (remaining / 1000).toFixed(1) + "s";
-    comboTimerBar.style.width =
-        Math.ceil((remaining / COMBO_WINDOW_MS) * 100) + "%";
+    updateComboMeter(remaining / windowMs);
 }
 
-/* Milestone feedback at x3 / x5 / x10. Non-blocking: it just
-   flashes a word and plays a tone, gameplay keeps running. */
-function checkComboMilestone() {
+/* Milestone feedback + rewards. Non-blocking: it just flashes a
+   message and plays a tone, gameplay keeps running. Priority:
+   SUPER COMBO (x12+) > MULTIPLIER xN! > AMAZING (x8/x10) >
+   COMBO xN (x2/x3/x5). The combo count is always echoed near the
+   player when a special count is reached (once per chain), and
+   x5 / x10 / x15 also pay a flat bonus score reward. */
+function checkComboMilestone(oldMult) {
+    var mult = comboMultiplier();
     var text = null;
-    if (combo >= 10) { text = "COMBO MASTER!"; }
-    else if (combo === 5) { text = "GREAT!"; }
-    else if (combo === 3) { text = "NICE!"; }
+    if (combo >= 12) {
+        text = "SUPER COMBO!";
+    } else if (mult > oldMult) {
+        text = "MULTIPLIER x" + mult + "!";
+    } else if (combo === 8 || combo === 10) {
+        text = "AMAZING!";
+    } else if (combo === 2 || combo === 3 || combo === 5) {
+        text = "COMBO x" + combo;
+    }
 
     if (text) {
+        comboMilestoneEl.classList.remove("lost");
         comboMilestoneEl.textContent = text;
         bumpFlash(comboMilestoneEl, "show");
         if (soundEnabled) {
@@ -2747,24 +2843,50 @@ function checkComboMilestone() {
             setTimeout(function() { playTone("square", 1100, 0.15, 0.2, 1650); }, 90);
         }
     }
+
+    /* Echo the chain count near the player at special counts that the
+       center popup did not already announce (no spam at other counts) */
+    if (combo === 3 || combo === 5 || combo === 8 ||
+        combo === 10 || combo === 12 || combo === 15) {
+        spawnFloatingText(
+            "COMBO x" + combo,
+            playerX + PLAYER_W / 2 - 8,
+            playerY + PLAYER_H + 34
+        );
+    }
+
+    /* Flat milestone rewards (never multiplied, once per chain) */
+    var reward = 0;
+    if (combo === 5) reward = COMBO_REWARD_5;
+    else if (combo === 10) reward = COMBO_REWARD_10;
+    else if (combo === 15) reward = COMBO_REWARD_15;
+    if (reward > 0) {
+        score += reward;
+        scoreEl.textContent = score;
+        flashScore();
+        updateHighScore();
+        spawnFloatingText("BONUS +" + reward, playerX + PLAYER_W / 2 + 4,
+                          playerY + PLAYER_H + 52);
+        if (soundEnabled) playTone("triangle", 1320, 0.1, 0.18, 1760);
+    }
 }
 
 function hideComboMilestone() {
-    comboMilestoneEl.classList.remove("show");
+    comboMilestoneEl.classList.remove("show", "lost");
 }
 
-/* Floating score text that shows the total (base + combo bonus)
-   and annotates it with "COMBO!" whenever a bonus was granted */
+/* Floating score text that shows the total and the active multiplier,
+   e.g. "+300 x3". Plain "+150" when the multiplier is still x1. */
 function showFloatingScore(total, bonus, cx, bottomY) {
-    var label = "+" + total;
-    if (bonus > 0) label += " COMBO!";
+    var mult = comboMultiplier();
+    var label = "+" + total + (mult > 1 ? " x" + mult : "");
     var pop = spawnFloatingText(label, cx, bottomY);
-    if (bonus > 0) pop.classList.add("combo");
+    if (mult > 1) pop.classList.add("combo");
     return pop;
 }
 
 /* The single scoring entry point for combo-eligible actions.
-   Adds the base score plus the growing combo bonus, bumps the
+   Adds the base score plus the growing multiplier bonus, bumps the
    combo, refreshes the HUD and shows a floating score. */
 function awardComboScore(base, cx, bottomY) {
     increaseCombo();
@@ -6185,4 +6307,6 @@ loadChallengeRecords();
 /* Day 18: restore daily rewards progress and update indicators */
 loadDailyRewards();
 updateDailyIndicator();
+/* Day 22: build the segmented combo meter before the first level */
+buildComboMeter();
 loadLevel(0);

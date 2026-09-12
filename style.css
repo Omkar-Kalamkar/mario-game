@@ -157,7 +157,7 @@ body {
 
 /* Combo HUD cell */
 #comboStat {
-    min-width: 86px;
+    min-width: 118px;
     position: relative;
 }
 
@@ -167,7 +167,22 @@ body {
     transition: color 0.2s ease, text-shadow 0.2s ease;
 }
 
-/* Compact WIN: line with the time readout and a thin timer bar */
+/* Day 22: multiplier readout under the combo value */
+#comboMult {
+    display: block;
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: #cfcfcf;
+    white-space: nowrap;
+    transition: color 0.2s ease, text-shadow 0.2s ease;
+}
+
+#comboMult.high {
+    color: #ffe95c;
+    text-shadow: 0 0 10px rgba(255, 233, 92, 0.8);
+}
+
+/* Compact WIN: line with the time readout and a segmented combo meter */
 .combo-line {
     display: inline-flex;
     flex-direction: column;
@@ -182,21 +197,41 @@ body {
     white-space: nowrap;
 }
 
-#comboTimerBarWrap {
-    display: inline-block;
-    width: 72px;
-    height: 6px;
+/* Day 22: block-style combo meter (like "█████░░░░░"), one block per
+   segment. The "on" segments represent the time left before the combo
+   expires, so the meter drains as the combo is about to be lost. */
+.combo-meter {
+    display: inline-flex;
+    gap: 2px;
+    padding: 2px 3px;
     background: #333;
     border-radius: 3px;
-    overflow: hidden;
+    line-height: 0;
 }
 
-#comboTimerBar {
-    display: block;
-    height: 100%;
-    width: 0%;
+.combo-meter .combo-meter-seg {
+    display: inline-block;
+    width: 7px;
+    height: 8px;
+    border-radius: 1px;
+    background: #3d3450;
+    transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.combo-meter .combo-meter-seg.on {
     background: linear-gradient(to right, #ff9d2e, #ff5bc8);
-    border-radius: 3px;
+    box-shadow: 0 0 6px rgba(255, 91, 200, 0.55);
+}
+
+/* Quick pulse whenever a combo action refreshes the chain */
+.combo-meter.pulse {
+    animation: comboMeterPulse 0.3s ease-out;
+}
+
+@keyframes comboMeterPulse {
+    0%   { transform: scale(1); }
+    50%  { transform: scale(1.18); }
+    100% { transform: scale(1); }
 }
 
 /* Combo emphasis: at x5 or higher the value pops with a pulse */
@@ -243,6 +278,12 @@ body {
 #comboMilestone.show {
     visibility: visible;
     animation: milestonePop 1.1s ease forwards;
+}
+
+/* Day 22: red variant shown briefly when the combo chain expires */
+#comboMilestone.lost {
+    color: #ff5a5a;
+    text-shadow: 3px 3px 0 #500;
 }
 
 @keyframes milestonePop {
